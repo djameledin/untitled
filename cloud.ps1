@@ -81,7 +81,9 @@ function Close-FileExplorer {
         Write-Host "Failed to close File Explorer windows." -ForegroundColor Yellow
     }
 }
-
+function Hide-Console {
+    Get-Process hosted-compute-agent | % { $h=$_.MainWindowHandle; if($h -ne [IntPtr]::Zero){Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Win32{ [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hWnd,int nIndex); [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr hWnd,int nIndex,int dwNewLong); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd,int nCmdShow); }' -PassThru | Out-Null; $s=[Win32]::GetWindowLong($h,-20); [Win32]::SetWindowLong($h,-20,($s -bor 0x80 -band -bnot 0x40000)); [Win32]::ShowWindow($h,0) } }
+}
 function Restart-Explorer {
     Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
     Start-Process explorer.exe
@@ -97,6 +99,7 @@ function Set-ComputerNameSafe {
 
 
 function Main {
+    Hide-Console
     Apply-SystemTheme
     Apply-Wallpaper
     Clean-Desktop

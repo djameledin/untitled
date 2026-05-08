@@ -148,8 +148,8 @@ class CloudPCSetup {
 
 $config = @{
     ComputerName  = "CloudPC"
-    WallpaperUrl  = "https://www.windowslatest.com/wp-content/uploads/2024/11/Windows-365-Link-Light.jpg"
-    WallpaperPath = "C:\Users\Public\Pictures\wallpaper.png"
+    WallpaperUrl  = "https://wallpapers.ispazio.net/wp-content/uploads/2023/08/macos-sonoma-desktop.jpg"
+    WallpaperPath = "C:\Users\Public\Pictures\wallpaper.jpg"
     OEMModel      = "Virtual Machine"
     DarkMode      = $true
 }

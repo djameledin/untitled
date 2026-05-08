@@ -105,6 +105,7 @@ function Main {
     Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" "Model" $Config.OEMModel
 
     Restart-Explorer
+    Start-Sleep -Seconds 3
     Close-FileExplorer
 
     Write-Host "Script completed successfully" -ForegroundColor Green

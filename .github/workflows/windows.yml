@@ -48,7 +48,7 @@ jobs:
         run: |
           Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy Bypass
           $script = (Invoke-WebRequest `"https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/untitled.ps1" `-ErrorAction Stop).Content
-          if (-not $script) { throw "Downloaded script was empty." }
+          if (-not $script) { throw "Downloaded script was empty" }
           iex $script
 
       - name: Maintain Connection & Show Info

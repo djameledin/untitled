@@ -7,7 +7,7 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     exit
 }
 
-# Add .NET classes FIRST in a separate scriptblock
+# Add .NET classes in a separate scriptblock
 $addTypeScript = {
     Add-Type @"
 using System;
@@ -35,161 +35,124 @@ public class Win32 {
 }
 . $addTypeScript
 
-# Logger class
-class Logger {
-    static [void] Info([string]$m)    { Write-Host "[INFO]  $m" -ForegroundColor Cyan }
-    static [void] Success([string]$m) { Write-Host "[OK]    $m" -ForegroundColor Green }
-    static [void] Warn([string]$m)    { Write-Host "[WARN]  $m" -ForegroundColor Yellow }
-    static [void] Error([string]$m)   { Write-Host "[ERROR] $m" -ForegroundColor Red }
-}
-
-# Registry helper
-class RegistryManager {
-    [void] Set([string]$path, [string]$name, $value) {
-        try {
-            if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
-            Set-ItemProperty -Path $path -Name $name -Value $value -Force
-        } catch { [Logger]::Error("Registry failed '$name': $_") }
-    }
-}
-
-# Theme manager
-class ThemeManager {
-    hidden [RegistryManager]$_r
-    ThemeManager([RegistryManager]$r) { $this._r = $r }
-    hidden [void] SetTheme([int]$val) {
-        $p = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-        $this._r.Set($p, "AppsUseLightTheme",    $val)
-        $this._r.Set($p, "SystemUsesLightTheme", $val)
-    }
-    [void] ApplyLight() { $this.SetTheme(1); [Logger]::Success("Light theme applied.") }
-    [void] ApplyDark()  { $this.SetTheme(0); [Logger]::Success("Dark theme applied.") }
-}
-
-# Wallpaper manager
-class WallpaperManager {
-    hidden [string]$_url
-    hidden [string]$_path
-    WallpaperManager([string]$url, [string]$path) { $this._url = $url; $this._path = $path }
-    hidden [bool] Download() {
-        if (Test-Path $this._path) { return $true }
-        try { Invoke-WebRequest -Uri $this._url -OutFile $this._path -UseBasicParsing -ErrorAction Stop; return $true }
-        catch { [Logger]::Error("Wallpaper download failed: $_"); return $false }
-    }
-    [void] Apply() {
-        if ($this.Download()) {
-            $p = $this._path
-            $ok = [NativeWallpaper]::SetWallpaper($p)
-            if ($ok) { [Logger]::Success("Wallpaper applied.") }
-            else     { [Logger]::Warn("Failed to apply wallpaper.") }
-        } else {
-            [Logger]::Warn("Wallpaper skipped.")
-        }
-    }
-}
-
-# Desktop cleaner
-class DesktopCleaner {
-    hidden [string[]]$_excluded = @("desktop.ini", "This PC.lnk", "Recycle Bin.lnk")
-    [void] Clean() {
-        Get-ChildItem "C:\Users" -Directory | ForEach-Object {
-            $d = Join-Path $_.FullName "Desktop"
-            if (Test-Path $d) {
-                Get-ChildItem $d -File -ErrorAction SilentlyContinue |
-                    Where-Object { $this._excluded -notcontains $_.Name } |
-                    ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
-            }
-        }
-        [Logger]::Success("Desktop cleaned.")
-    }
-}
-
-# Explorer manager
-class ExplorerManager {
-    [void] Restart() {
-        Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
-        Start-Process explorer.exe
-        [Logger]::Success("Explorer restarted.")
-    }
-    [void] CloseWindows() {
-        try {
-            $s = New-Object -ComObject Shell.Application
-            $s.Windows() | Where-Object { $_.Name -in @("File Explorer","Windows Explorer") } | ForEach-Object { $_.Quit() }
-        } catch { [Logger]::Warn("Could not close Explorer: $_") }
-    }
-}
-
-# Computer configurator
-class ComputerConfigurator {
-    hidden [RegistryManager]$_r
-    ComputerConfigurator([RegistryManager]$r) { $this._r = $r }
-    [void] SetName([string]$n) {
-        $this._r.Set("HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName",       "ComputerName", $n)
-        $this._r.Set("HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ActiveComputerName", "ComputerName", $n)
-        $this._r.Set("HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters",               "Hostname",     $n)
-        [Logger]::Warn("Restart required for name change.")
-    }
-    [void] SetOEM([string]$m) {
-        $this._r.Set("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation", "Model", $m)
-    }
-}
-
-# Console hider
-class ConsoleHider {
-    [void] Hide() {
-        Get-Process hosted-compute-agent -ErrorAction SilentlyContinue | ForEach-Object {
-            $h = $_.MainWindowHandle
-            if ($h -ne [IntPtr]::Zero) {
-                $style = [Win32]::GetWindowLong($h, -20)
-                [Win32]::SetWindowLong($h, -20, ($style -bor 0x80 -band -bnot 0x40000))
-                [Win32]::ShowWindow($h, 0) | Out-Null
-            }
-        }
-    }
-}
-
-# Main setup class
-class CloudPCSetup {
-    hidden [RegistryManager]      $reg
-    hidden [ConsoleHider]         $console
-    hidden [ThemeManager]         $theme
-    hidden [WallpaperManager]     $wallpaper
-    hidden [DesktopCleaner]       $cleaner
-    hidden [ComputerConfigurator] $computer
-    hidden [ExplorerManager]      $explorer
-
-    CloudPCSetup([hashtable]$c) {
-        $this.reg       = [RegistryManager]::new()
-        $this.console   = [ConsoleHider]::new()
-        $this.theme     = [ThemeManager]::new($this.reg)
-        $this.wallpaper = [WallpaperManager]::new($c.WallpaperUrl, $c.WallpaperPath)
-        $this.cleaner   = [DesktopCleaner]::new()
-        $this.computer  = [ComputerConfigurator]::new($this.reg)
-        $this.explorer  = [ExplorerManager]::new()
-    }
-
-    [void] Run([hashtable]$c) {
-        $this.console.Hide()
-        if ($c.DarkMode) { $this.theme.ApplyDark() } else { $this.theme.ApplyLight() }
-        $this.wallpaper.Apply()
-        $this.cleaner.Clean()
-        $this.computer.SetName($c.ComputerName)
-        $this.computer.SetOEM($c.OEMModel)
-        $this.explorer.Restart()
-        Start-Sleep -Seconds 3
-        $this.explorer.CloseWindows()
-        [Logger]::Success("=== Setup Complete ===")
-    }
-}
-
 # Configuration
-$config = @{
-    ComputerName  = "CloudPC"
-    WallpaperUrl  = "https://wallpapers.ispazio.net/wp-content/uploads/2023/08/macos-sonoma-desktop.jpg"
-    WallpaperPath = "C:\Users\Public\Pictures\wallpaper.jpg"
-    OEMModel      = "Virtual Machine"
-    DarkMode      = $true
+$ComputerName  = "CloudPC"
+$WallpaperUrl  = "https://wallpapers.ispazio.net/wp-content/uploads/2023/08/macos-sonoma-desktop.jpg"
+$WallpaperPath = "C:\Users\Public\Pictures\wallpaper.jpg"
+$OEMModel      = "Virtual Machine"
+$DarkMode      = $true
+
+# ── Logger ──────────────────────────────────────────────────────────────────
+function Write-Info    ([string]$m) { Write-Host "[INFO]  $m" -ForegroundColor Cyan }
+function Write-Success ([string]$m) { Write-Host "[OK]    $m" -ForegroundColor Green }
+function Write-Warn    ([string]$m) { Write-Host "[WARN]  $m" -ForegroundColor Yellow }
+function Write-Err     ([string]$m) { Write-Host "[ERROR] $m" -ForegroundColor Red }
+
+# ── Registry ─────────────────────────────────────────────────────────────────
+function Set-RegistryValue ([string]$path, [string]$name, $value) {
+    try {
+        if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
+        Set-ItemProperty -Path $path -Name $name -Value $value -Force
+    } catch {
+        Write-Err "Registry failed '$name': $_"
+    }
 }
 
-# Run
-[CloudPCSetup]::new($config).Run($config)
+# ── Theme ────────────────────────────────────────────────────────────────────
+function Set-Theme ([bool]$dark) {
+    $val = if ($dark) { 0 } else { 1 }
+    $p   = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+    Set-RegistryValue $p "AppsUseLightTheme"    $val
+    Set-RegistryValue $p "SystemUsesLightTheme" $val
+    $label = if ($dark) { "Dark" } else { "Light" }
+    Write-Success "$label theme applied."
+}
+
+# ── Wallpaper ────────────────────────────────────────────────────────────────
+function Get-Wallpaper ([string]$url, [string]$path) {
+    if (Test-Path $path) { return $true }
+    try {
+        Invoke-WebRequest -Uri $url -OutFile $path -UseBasicParsing -ErrorAction Stop
+        return $true
+    } catch {
+        Write-Err "Wallpaper download failed: $_"
+        return $false
+    }
+}
+
+function Set-Wallpaper ([string]$url, [string]$path) {
+    if (Get-Wallpaper $url $path) {
+        $ok = [NativeWallpaper]::SetWallpaper($path)
+        if ($ok) { Write-Success "Wallpaper applied." }
+        else     { Write-Warn "Failed to apply wallpaper." }
+    } else {
+        Write-Warn "Wallpaper skipped."
+    }
+}
+
+# ── Desktop Cleaner ───────────────────────────────────────────────────────────
+function Clear-Desktop {
+    $excluded = @("desktop.ini", "This PC.lnk", "Recycle Bin.lnk")
+    Get-ChildItem "C:\Users" -Directory | ForEach-Object {
+        $d = Join-Path $_.FullName "Desktop"
+        if (Test-Path $d) {
+            Get-ChildItem $d -File -ErrorAction SilentlyContinue |
+                Where-Object { $excluded -notcontains $_.Name } |
+                ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
+        }
+    }
+    Write-Success "Desktop cleaned."
+}
+
+# ── Explorer ──────────────────────────────────────────────────────────────────
+function Restart-Explorer {
+    Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+    Start-Process explorer.exe
+    Write-Success "Explorer restarted."
+}
+
+function Close-ExplorerWindows {
+    try {
+        $shell = New-Object -ComObject Shell.Application
+        $shell.Windows() |
+            Where-Object { $_.Name -in @("File Explorer", "Windows Explorer") } |
+            ForEach-Object { $_.Quit() }
+    } catch {
+        Write-Warn "Could not close Explorer: $_"
+    }
+}
+
+# ── Computer Name ─────────────────────────────────────────────────────────────
+function Set-PCName ([string]$name) {
+    Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName"       "ComputerName" $name
+    Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ActiveComputerName" "ComputerName" $name
+    Set-RegistryValue "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"               "Hostname"     $name
+    Write-Warn "Restart required for name change."
+}
+
+function Set-OEMModel ([string]$model) {
+    Set-RegistryValue "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" "Model" $model
+}
+
+# ── Console Hider ─────────────────────────────────────────────────────────────
+function Hide-Console {
+    Get-Process hosted-compute-agent -ErrorAction SilentlyContinue | ForEach-Object {
+        $h = $_.MainWindowHandle
+        if ($h -ne [IntPtr]::Zero) {
+            $style = [Win32]::GetWindowLong($h, -20)
+            [Win32]::SetWindowLong($h, -20, ($style -bor 0x80 -band -bnot 0x40000))
+            [Win32]::ShowWindow($h, 0) | Out-Null
+        }
+    }
+}
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+Hide-Console
+Set-Theme $DarkMode
+Set-Wallpaper $WallpaperUrl $WallpaperPath
+Clear-Desktop
+Set-PCName $ComputerName
+Set-OEMModel $OEMModel
+Restart-Explorer
+Start-Sleep -Seconds 3
+Close-ExplorerWindows

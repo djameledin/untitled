@@ -4,9 +4,20 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 }
 
 Add-Type @"
+using System;
 using System.Runtime.InteropServices;
 public class NativeWallpaper {
-    [DllImport("user32.dll")] public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    public static extern bool SystemParametersInfo(
+        uint uAction,
+        uint uParam,
+        string lpvParam,
+        uint fuWinIni
+    );
+
+    public static bool SetWallpaper(string path) {
+        return SystemParametersInfo(0x0014, 0, path, 0x0001 | 0x0002);
+    }
 }
 public class Win32 {
     [DllImport("user32.dll")] public static extern int  GetWindowLong(IntPtr h, int i);
@@ -53,8 +64,13 @@ class WallpaperManager {
         catch { [Logger]::Error("Wallpaper download failed: $_"); return $false }
     }
     [void] Apply() {
-        if ($this.Download()) { [NativeWallpaper]::SystemParametersInfo(20, 0, $this._path, 3) | Out-Null; [Logger]::Success("Wallpaper applied.") }
-        else { [Logger]::Warn("Wallpaper skipped.") }
+        if ($this.Download()) {
+            $ok = [NativeWallpaper]::SetWallpaper($this._path)
+            if ($ok) { [Logger]::Success("Wallpaper applied.") }
+            else     { [Logger]::Warn("Failed to apply wallpaper.") }
+        } else {
+            [Logger]::Warn("Wallpaper skipped.")
+        }
     }
 }
 

@@ -3,8 +3,7 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     Start-Process powershell -Verb RunAs -ArgumentList $PSCommandPath; exit
 }
 
-& {
-    Add-Type @"
+Add-Type @"
 using System.Runtime.InteropServices;
 public class NativeWallpaper {
     [DllImport("user32.dll")] public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
@@ -15,7 +14,6 @@ public class Win32 {
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
 }
 "@
-}
 
 class Logger {
     static [void] Info([string]$m)    { Write-Host "[INFO]  $m" -ForegroundColor Cyan    }
@@ -46,7 +44,8 @@ class ThemeManager {
 }
 
 class WallpaperManager {
-    hidden [string]$_url, $_path
+    hidden [string]$_url
+    hidden [string]$_path
     WallpaperManager([string]$url, [string]$path) { $this._url = $url; $this._path = $path }
     hidden [bool] Download() {
         if (Test-Path $this._path) { return $true }

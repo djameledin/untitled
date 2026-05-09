@@ -1,13 +1,17 @@
+# Elevate to admin if not already
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Start-Process powershell -Verb RunAs -ArgumentList $PSCommandPath; exit
+    Start-Process powershell -Verb RunAs -ArgumentList $PSCommandPath
+    exit
 }
 
+# Add .NET classes
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
+
 public class NativeWallpaper {
-    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    [DllImport(`"user32.dll`", CharSet = CharSet.Auto, SetLastError = true)]
     public static extern bool SystemParametersInfo(
         uint uAction,
         uint uParam,
@@ -19,20 +23,23 @@ public class NativeWallpaper {
         return SystemParametersInfo(0x0014, 0, path, 0x0001 | 0x0002);
     }
 }
+
 public class Win32 {
-    [DllImport("user32.dll")] public static extern int  GetWindowLong(IntPtr h, int i);
-    [DllImport("user32.dll")] public static extern int  SetWindowLong(IntPtr h, int i, int v);
-    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
+    [DllImport(`"user32.dll`")] public static extern int GetWindowLong(IntPtr h, int i);
+    [DllImport(`"user32.dll`")] public static extern int SetWindowLong(IntPtr h, int i, int v);
+    [DllImport(`"user32.dll`")] public static extern bool ShowWindow(IntPtr h, int n);
 }
 "@
 
+# Logger class
 class Logger {
-    static [void] Info([string]$m)    { Write-Host "[INFO]  $m" -ForegroundColor Cyan    }
-    static [void] Success([string]$m) { Write-Host "[OK]    $m" -ForegroundColor Green   }
-    static [void] Warn([string]$m)    { Write-Host "[WARN]  $m" -ForegroundColor Yellow  }
-    static [void] Error([string]$m)   { Write-Host "[ERROR] $m" -ForegroundColor Red     }
+    static [void] Info([string]$m)    { Write-Host "[INFO]  $m" -ForegroundColor Cyan }
+    static [void] Success([string]$m) { Write-Host "[OK]    $m" -ForegroundColor Green }
+    static [void] Warn([string]$m)    { Write-Host "[WARN]  $m" -ForegroundColor Yellow }
+    static [void] Error([string]$m)   { Write-Host "[ERROR] $m" -ForegroundColor Red }
 }
 
+# Registry helper
 class RegistryManager {
     [void] Set([string]$path, [string]$name, $value) {
         try {
@@ -42,6 +49,7 @@ class RegistryManager {
     }
 }
 
+# Theme manager
 class ThemeManager {
     hidden [RegistryManager]$_r
     ThemeManager([RegistryManager]$r) { $this._r = $r }
@@ -51,9 +59,10 @@ class ThemeManager {
         $this._r.Set($p, "SystemUsesLightTheme", $val)
     }
     [void] ApplyLight() { $this.SetTheme(1); [Logger]::Success("Light theme applied.") }
-    [void] ApplyDark()  { $this.SetTheme(0); [Logger]::Success("Dark theme applied.")  }
+    [void] ApplyDark()  { $this.SetTheme(0); [Logger]::Success("Dark theme applied.") }
 }
 
+# Wallpaper manager
 class WallpaperManager {
     hidden [string]$_url
     hidden [string]$_path
@@ -74,6 +83,7 @@ class WallpaperManager {
     }
 }
 
+# Desktop cleaner
 class DesktopCleaner {
     hidden [string[]]$_excluded = @("desktop.ini", "This PC.lnk", "Recycle Bin.lnk")
     [void] Clean() {
@@ -89,6 +99,7 @@ class DesktopCleaner {
     }
 }
 
+# Explorer manager
 class ExplorerManager {
     [void] Restart() {
         Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
@@ -103,6 +114,7 @@ class ExplorerManager {
     }
 }
 
+# Computer configurator
 class ComputerConfigurator {
     hidden [RegistryManager]$_r
     ComputerConfigurator([RegistryManager]$r) { $this._r = $r }
@@ -117,6 +129,7 @@ class ComputerConfigurator {
     }
 }
 
+# Console hider
 class ConsoleHider {
     [void] Hide() {
         Get-Process hosted-compute-agent -ErrorAction SilentlyContinue | ForEach-Object {
@@ -130,6 +143,7 @@ class ConsoleHider {
     }
 }
 
+# Main setup class
 class CloudPCSetup {
     hidden [RegistryManager]      $reg
     hidden [ConsoleHider]         $console
@@ -163,6 +177,7 @@ class CloudPCSetup {
     }
 }
 
+# Configuration
 $config = @{
     ComputerName  = "CloudPC"
     WallpaperUrl  = "https://wallpapers.ispazio.net/wp-content/uploads/2023/08/macos-sonoma-desktop.jpg"
@@ -171,4 +186,5 @@ $config = @{
     DarkMode      = $true
 }
 
+# Run the setup
 [CloudPCSetup]::new($config).Run($config)

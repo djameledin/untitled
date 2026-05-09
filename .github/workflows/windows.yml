@@ -48,11 +48,9 @@ jobs:
         run: |
           # Customize This PC
           $rawUrl = "https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1"
-
           $code = (Invoke-WebRequest -Uri $rawUrl).Content
 
-          PowerShell.exe -ExecutionPolicy Bypass -Command $code
-
+          Invoke-Expression $code
       - name: Maintain Connection & Show Info
         shell: pwsh
         run: |

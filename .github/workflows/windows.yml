@@ -47,9 +47,15 @@ jobs:
         shell: pwsh
         run: |
           # Customize This PC
-          $tmpFile = "$env:TEMP\setup_$(Get-Random).ps1"
-          $script | Set-Content -Path $tmpFile -Encoding UTF8
-          powershell.exe -ExecutionPolicy Bypass -File $tmpFile Remove-Item $tmpFile -Force
+          $rawUrl = "https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1"
+
+          $destFile = "C:\Users\runnerdamin\Downloads\untitled.ps1"
+
+          Invoke-WebRequest -Uri $rawUrl -OutFile $destFile 
+
+          PowerShell.exe -ExecutionPolicy Bypass -File $destFile
+
+          Remove-Item -Path $destFile -Force
 
       - name: Maintain Connection & Show Info
         shell: pwsh

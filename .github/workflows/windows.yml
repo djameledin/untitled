@@ -49,7 +49,7 @@ jobs:
           # Customize This PC
           $rawUrl = "https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1"
 
-          $destFile = "C:\Users\runnerdamin\Downloads\untitled.ps1"
+          $destFile = "C:\Users\runneradmin\Downloads\untitled.ps1"
 
           Invoke-WebRequest -Uri $rawUrl -OutFile $destFile 
 

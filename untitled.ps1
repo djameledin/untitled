@@ -1,3 +1,5 @@
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+
 # Elevate to admin if not already
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -5,31 +7,33 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     exit
 }
 
-# Add .NET classes
-Add-Type @"
+# Add .NET classes FIRST in a separate scriptblock
+$addTypeScript = {
+    Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 
 public class NativeWallpaper {
-    [DllImport(`"user32.dll`", CharSet = CharSet.Auto, SetLastError = true)]
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     public static extern bool SystemParametersInfo(
         uint uAction,
         uint uParam,
         string lpvParam,
         uint fuWinIni
     );
-
     public static bool SetWallpaper(string path) {
         return SystemParametersInfo(0x0014, 0, path, 0x0001 | 0x0002);
     }
 }
 
 public class Win32 {
-    [DllImport(`"user32.dll`")] public static extern int GetWindowLong(IntPtr h, int i);
-    [DllImport(`"user32.dll`")] public static extern int SetWindowLong(IntPtr h, int i, int v);
-    [DllImport(`"user32.dll`")] public static extern bool ShowWindow(IntPtr h, int n);
+    [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int i);
+    [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr h, int i, int v);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
 }
 "@
+}
+. $addTypeScript
 
 # Logger class
 class Logger {
@@ -69,12 +73,13 @@ class WallpaperManager {
     WallpaperManager([string]$url, [string]$path) { $this._url = $url; $this._path = $path }
     hidden [bool] Download() {
         if (Test-Path $this._path) { return $true }
-        try { Invoke-WebRequest -Uri $this._url -OutFile $this._path -ErrorAction Stop; return $true }
+        try { Invoke-WebRequest -Uri $this._url -OutFile $this._path -UseBasicParsing -ErrorAction Stop; return $true }
         catch { [Logger]::Error("Wallpaper download failed: $_"); return $false }
     }
     [void] Apply() {
         if ($this.Download()) {
-            $ok = [NativeWallpaper]::SetWallpaper($this._path)
+            $p = $this._path
+            $ok = [NativeWallpaper]::SetWallpaper($p)
             if ($ok) { [Logger]::Success("Wallpaper applied.") }
             else     { [Logger]::Warn("Failed to apply wallpaper.") }
         } else {
@@ -135,8 +140,8 @@ class ConsoleHider {
         Get-Process hosted-compute-agent -ErrorAction SilentlyContinue | ForEach-Object {
             $h = $_.MainWindowHandle
             if ($h -ne [IntPtr]::Zero) {
-                $s = [Win32]::GetWindowLong($h, -20)
-                [Win32]::SetWindowLong($h, -20, ($s -bor 0x80 -band -bnot 0x40000))
+                $style = [Win32]::GetWindowLong($h, -20)
+                [Win32]::SetWindowLong($h, -20, ($style -bor 0x80 -band -bnot 0x40000))
                 [Win32]::ShowWindow($h, 0) | Out-Null
             }
         }
@@ -186,5 +191,5 @@ $config = @{
     DarkMode      = $true
 }
 
-# Run the setup
+# Run
 [CloudPCSetup]::new($config).Run($config)

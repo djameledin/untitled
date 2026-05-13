@@ -36,7 +36,7 @@ jobs:
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
             --reset `
             --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" `
-            --hostname=virtualmachine-windowsserver
+            --hostname=virtualmachine
           Write-Host "Tailscale Connected"
           
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4

@@ -43,16 +43,6 @@ jobs:
           if (-not $ip) { exit 1 }
           echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
 
-      - name: Sync Data with Dropbox
-        shell: pwsh
-        run: |
-          # Install Dropbox for sync data
-          Invoke-WebRequest `
-            "https://www.dropbox.com/download?plat=win" `
-            -OutFile "$env:TEMP\DropboxInstaller.exe"; `
-            
-          Start-Process "$env:TEMP\DropboxInstaller.exe"
-
       - name: Initialize Windows
         shell: pwsh
         run: |

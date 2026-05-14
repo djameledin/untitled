@@ -1,1 +1,91 @@
-Set-ExecutionPolicy Bypass -Scope Process -Force;Add-Type "using System;using System.Runtime.InteropServices;public class NativeWallpaper {[DllImport(`"user32.dll`", CharSet=CharSet.Auto, SetLastError=true)] public static extern bool SystemParametersInfo(uint uAction,uint uParam,string lpvParam,uint fuWinIni); public static bool SetWallpaper(string path){return SystemParametersInfo(0x0014,0,path,0x0001|0x0002);}} public class Win32 {[DllImport(`"user32.dll`")] public static extern int GetWindowLong(IntPtr h,int i);[DllImport(`"user32.dll`")] public static extern int SetWindowLong(IntPtr h,int i,int v);[DllImport(`"user32.dll`")] public static extern bool ShowWindow(IntPtr h,int n);}";$WallpaperUrl="https://www.windowslatest.com/wp-content/uploads/2024/11/Windows-365-Link-Light.jpg";$DarkMode=$false;$WallpaperPath="C:\Users\Public\Pictures\wallpaper.jpg";$SW_HIDE=0;$excluded=@("Recycle Bin.lnk");$tempFolder="C:\Temp\DesktopShortcuts";if(-not(Test-Path $tempFolder)){New-Item $tempFolder -ItemType Directory|Out-Null};Get-Process hosted-compute-agent -ErrorAction SilentlyContinue|ForEach-Object{$h=$_.MainWindowHandle;if($h -ne [IntPtr]::Zero){[Win32]::GetWindowLong($h,-20)|Out-Null;[Win32]::SetWindowLong($h,-20,([Win32]::GetWindowLong($h,-20) -bor 0x80 -band -bnot 0x40000))|Out-Null;[Win32]::ShowWindow($h,0)|Out-Null}}2>$null;$proc=Get-Process -Name "tailscale-ipn" -ErrorAction SilentlyContinue;if($proc -ne $null){foreach($p in $proc){if($p.MainWindowTitle -eq "Tailscale"){[Win32]::ShowWindow($p.MainWindowHandle,$SW_HIDE)|Out-Null}}};Get-ChildItem "C:\Users" -Directory|ForEach-Object{$d=Join-Path $_.FullName "Desktop";if(Test-Path $d){Get-ChildItem $d -File -ErrorAction SilentlyContinue|Where-Object{$excluded -notcontains $_.Name}|ForEach-Object{Move-Item $_.FullName $tempFolder -Force -ErrorAction SilentlyContinue}}};$val=if($DarkMode){0}else{1};$p="HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";if(-not(Test-Path $WallpaperPath)){Invoke-WebRequest -Uri $WallpaperUrl -OutFile $WallpaperPath -UseBasicParsing -ErrorAction Stop|Out-Null};[NativeWallpaper]::SetWallpaper($WallpaperPath)|Out-Null;Set-ItemProperty $p "AppsUseLightTheme" $val|Out-Null;Set-ItemProperty $p "SystemUsesLightTheme" $val|Out-Null;$ComputerName="CloudPC";$OEMModel="Virtual Machine";Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName" "ComputerName" $ComputerName -Force|Out-Null;Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ActiveComputerName" "ComputerName" $ComputerName -Force|Out-Null;Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "Hostname" $ComputerName -Force|Out-Null;Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" "Model" $OEMModel -Force|Out-Null;Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue;Start-Process explorer.exe|Out-Null;Start-Sleep -Seconds 3;$shell=New-Object -ComObject Shell.Application;$shell.Windows()|Where-Object{$_.Name -in @("File Explorer","Windows Explorer")}|ForEach-Object{$_.Quit()}
+# Allow script execution
+Set-ExecutionPolicy Bypass -Scope Process -Force
+
+# Add Win32 API functions
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+
+public class NativeWallpaper {
+    [DllImport("user32.dll", CharSet=CharSet.Auto, SetLastError=true)]
+    public static extern bool SystemParametersInfo(uint uAction, uint uParam, string lpvParam, uint fuWinIni);
+    
+    public static bool SetWallpaper(string path) {
+        return SystemParametersInfo(0x0014, 0, path, 0x0001 | 0x0002);
+    }
+}
+
+public class Win32 {
+    [DllImport("user32.dll")]
+    public static extern int GetWindowLong(IntPtr h, int i);
+    
+    [DllImport("user32.dll")]
+    public static extern int SetWindowLong(IntPtr h, int i, int v);
+    
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr h, int n);
+}
+"@
+
+# Settings
+$WallpaperUrl = "https://www.windowslatest.com/wp-content/uploads/2024/11/Windows-365-Link-Light.jpg"
+$WallpaperPath = "C:\Users\Public\Pictures\wallpaper.jpg"
+$DarkMode = $false
+$SW_HIDE = 0
+$excluded = @("Recycle Bin.lnk")
+$tempFolder = "C:\Temp\DesktopShortcuts"
+
+# Create temporary folder if it doesn't exist
+if (-not (Test-Path $tempFolder)) { New-Item $tempFolder -ItemType Directory | Out-Null }
+
+# Hide specific processes windows (hosted-compute-agent and Tailscale)
+$processesToHide = @("hosted-compute-agent", "tailscale-ipn")
+foreach ($procName in $processesToHide) {
+    $procs = Get-Process -Name $procName -ErrorAction SilentlyContinue
+    foreach ($p in $procs) {
+        if ($p.MainWindowHandle -ne [IntPtr]::Zero -and ($p.MainWindowTitle -ne "" -or $procName -eq "hosted-compute-agent")) {
+            $style = [Win32]::GetWindowLong($p.MainWindowHandle, -20)
+            [Win32]::SetWindowLong($p.MainWindowHandle, -20, ($style -bor 0x80 -band -bnot 0x40000)) | Out-Null
+            [Win32]::ShowWindow($p.MainWindowHandle, $SW_HIDE) | Out-Null
+        }
+    }
+}
+
+# Move desktop icons for all users to temporary folder
+$desktopFiles = Get-ChildItem "C:\Users\*" -Directory | ForEach-Object {
+    $d = Join-Path $_.FullName "Desktop"
+    if (Test-Path $d) { Get-ChildItem $d -File -ErrorAction SilentlyContinue }
+} | Where-Object { $excluded -notcontains $_.Name }
+
+if ($desktopFiles) { Move-Item $desktopFiles.FullName $tempFolder -Force }
+
+# Download wallpaper if not exists
+if (-not (Test-Path $WallpaperPath)) {
+    Invoke-WebRequest -Uri $WallpaperUrl -OutFile $WallpaperPath -UseBasicParsing -ErrorAction Stop
+}
+
+# Set wallpaper
+[NativeWallpaper]::SetWallpaper($WallpaperPath) | Out-Null
+
+# Set light/dark mode
+$val = if ($DarkMode) { 0 } else { 1 }
+$p = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+Set-ItemProperty $p "AppsUseLightTheme" $val | Out-Null
+Set-ItemProperty $p "SystemUsesLightTheme" $val | Out-Null
+
+# Change computer name and OEM model
+$ComputerName = "CloudPC"
+$OEMModel = "Virtual Machine"
+Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName" "ComputerName" $ComputerName -Force | Out-Null
+Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ActiveComputerName" "ComputerName" $ComputerName -Force | Out-Null
+Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "Hostname" $ComputerName -Force | Out-Null
+Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" "Model" $OEMModel -Force | Out-Null
+
+# Restart Explorer to apply changes
+Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+Start-Process explorer.exe
+Start-Sleep -Seconds 3
+
+# Close any remaining Explorer windows
+$shell = New-Object -ComObject Shell.Application
+$shell.Windows() | Where-Object { $_.Name -in @("File Explorer", "Windows Explorer") } | ForEach-Object { $_.Quit() }

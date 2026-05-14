@@ -73,14 +73,6 @@ $p = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 Set-ItemProperty $p "AppsUseLightTheme" $val | Out-Null
 Set-ItemProperty $p "SystemUsesLightTheme" $val | Out-Null
 
-# Change computer name and OEM model
-$ComputerName = "CloudPC"
-$OEMModel = "Virtual Machine"
-Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName" "ComputerName" $ComputerName -Force | Out-Null
-Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName\ActiveComputerName" "ComputerName" $ComputerName -Force | Out-Null
-Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "Hostname" $ComputerName -Force | Out-Null
-Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation" "Model" $OEMModel -Force | Out-Null
-
 # Restart Explorer to apply changes
 Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
 Start-Process explorer.exe

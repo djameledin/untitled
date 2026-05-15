@@ -28,7 +28,7 @@ public class Win32 {
 "@
 
 # Settings
-$WallpaperUrl = "https://www.windowslatest.com/wp-content/uploads/2024/11/Windows-365-Link-Light.jpg"
+$WallpaperUrl = "https://wallpapercave.com/download/windows-11-wallpapers-wp9378812"
 $WallpaperPath = "C:\Users\Public\Pictures\wallpaper.jpg"
 $DarkMode = $false
 $SW_HIDE = 0

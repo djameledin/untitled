@@ -56,7 +56,7 @@ jobs:
         run: |
           $u = "standarduser"
           $p = "${{ secrets.PASSWORD }}"
-          $path = "C:\Users\$u\init.ps1"
+          $path = "$env:ProgramData\init.ps1"
 
           Invoke-WebRequest "https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1" -OutFile $path
 

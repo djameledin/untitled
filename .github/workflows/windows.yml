@@ -1,4 +1,4 @@
-name: Windows environment
+name: Windows Environment
 
 on:
   workflow_dispatch:
@@ -9,36 +9,44 @@ jobs:
     timeout-minutes: 340
 
     steps:
-      - name: Configure default runneradmin user
+
+      # ----------------------------------------
+      # Create Standard User
+      # ----------------------------------------
+
+      - name: Configure User
         shell: pwsh
         run: |
-          # Configure the local account credentials and permissions
+
           $username = "standarduser"
           $password = "${{ secrets.PASSWORD }}"
-          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
 
-          # Create user if it does not exist
+          $securePass = ConvertTo-SecureString `
+            $password `
+            -AsPlainText `
+            -Force
+
+          # Create user if not exists
           if (-not (Get-LocalUser -Name $username -ErrorAction SilentlyContinue)) {
 
               New-LocalUser `
                 -Name $username `
                 -Password $securePass `
                 -FullName $username `
-                -Description "GitHub Actions local admin account"
+                -Description "Interactive Desktop User"
 
-              Write-Host "User created successfully."
+              Write-Host "User created."
           }
           else {
 
-              # Update existing user password
               Set-LocalUser `
                 -Name $username `
                 -Password $securePass
 
-              Write-Host "Existing user updated successfully."
+              Write-Host "User updated."
           }
 
-          # Prevent password expiration
+          # Never expire password
           Set-LocalUser `
             -Name $username `
             -PasswordNeverExpires $true
@@ -54,46 +62,128 @@ jobs:
             -Member $username `
             -ErrorAction SilentlyContinue
 
-          # Export environment variables
+          # Export variables
           echo "USERNAME=$username" >> $env:GITHUB_ENV
           echo "PASSWORD=$password" >> $env:GITHUB_ENV
 
-          Write-Host "User account provisioning completed successfully."
+      # ----------------------------------------
+      # Enable RDP + Optimize Session
+      # ----------------------------------------
 
-      - name: Install & Connect Tailscale
+      - name: Configure RDP
         shell: pwsh
         run: |
-          # Install Tailscale
+
+          # Enable Remote Desktop
+          Set-ItemProperty `
+            -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+            -Name "fDenyTSConnections" `
+            -Value 0
+
+          Enable-NetFirewallRule `
+            -DisplayGroup "Remote Desktop"
+
+          # Disable first login animation
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" `
+            /v EnableFirstLogonAnimation `
+            /t REG_DWORD `
+            /d 0 `
+            /f
+
+          # Disable lock screen
+          reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Personalization" `
+            /v NoLockScreen `
+            /t REG_DWORD `
+            /d 1 `
+            /f
+
+          # Disable privacy setup
+          reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\OOBE" `
+            /v DisablePrivacyExperience `
+            /t REG_DWORD `
+            /d 1 `
+            /f
+
+          # Disable sleep
+          powercfg /change standby-timeout-ac 0
+          powercfg /change monitor-timeout-ac 0
+
+          Write-Host "RDP configured."
+
+      # ----------------------------------------
+      # Download PsExec
+      # ----------------------------------------
+
+      - name: Download PsExec
+        shell: pwsh
+        run: |
+
+          Invoke-WebRequest `
+            https://download.sysinternals.com/files/PSTools.zip `
+            -OutFile "$env:TEMP\pstools.zip"
+
+          Expand-Archive `
+            "$env:TEMP\pstools.zip" `
+            "$env:TEMP\pstools"
+
+          echo "$env:TEMP\pstools" >> $env:GITHUB_PATH
+
+      # ----------------------------------------
+      # Install Tailscale
+      # ----------------------------------------
+
+      - name: Install Tailscale
+        shell: pwsh
+        run: |
+
           Invoke-WebRequest `
             https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi `
             -OutFile "$env:TEMP\tailscale.msi"
 
-          Start-Process msiexec.exe `
+          Start-Process `
+            msiexec.exe `
             -ArgumentList "/i `"$env:TEMP\tailscale.msi`" /quiet /norestart" `
             -Wait
 
-          # Connect Tailscale
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
             --reset `
             --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" `
             --hostname=virtualmachine
 
-          Write-Host "Tailscale Connected"
+          Write-Host "Tailscale connected."
 
-          # Get Tailscale IP
+          # Get IP
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
 
           if (-not $ip) {
-              Write-Error "Failed to retrieve Tailscale IP"
+              Write-Error "No Tailscale IP found."
               exit 1
           }
 
           echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
 
+      # ----------------------------------------
+      # Start Interactive Desktop Session
+      # ----------------------------------------
+
+      - name: Start Explorer Session
+        shell: cmd
+        run: |
+
+          psexec.exe -accepteula ^
+          -i ^
+          -u .\standarduser ^
+          -p ${{ secrets.PASSWORD }} ^
+          explorer.exe
+
+      # ----------------------------------------
+      # Initialize Desktop
+      # ----------------------------------------
+
       - name: Initialize Windows
         shell: pwsh
         run: |
-          # Download customization script
+
           $rawUrl = "https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1"
 
           $tmpFile = "$env:TEMP\untitled.ps1"
@@ -102,7 +192,6 @@ jobs:
             -Uri $rawUrl `
             -OutFile $tmpFile
 
-          # Credentials for standarduser
           $username = ".\standarduser"
           $password = "${{ secrets.PASSWORD }}"
 
@@ -117,39 +206,50 @@ jobs:
               $securePass
             )
 
-          Write-Host "Running initialization script as standarduser..."
-
-          # Execute script as standarduser
           Start-Process `
             powershell.exe `
             -Credential $credential `
             -ArgumentList "-ExecutionPolicy Bypass -File `"$tmpFile`"" `
             -Wait
 
-      - name: Maintain Connection & Show Info
+      # ----------------------------------------
+      # Show Connection Info
+      # ----------------------------------------
+
+      - name: Connection Info
         shell: pwsh
         run: |
-          # Display connection details
-          Write-Host "The Virtual Machine with this IP ($env:TAILSCALE_IP) is ready!"
-          Write-Host "Username: $env:USERNAME"
-          Write-Host "Password Length: $($env:PASSWORD.Length) characters"
 
-          # Keep workflow alive
+          Write-Host ""
+          Write-Host "======================================="
+          Write-Host "RDP READY"
+          Write-Host "======================================="
+          Write-Host ""
+          Write-Host "IP: $env:TAILSCALE_IP"
+          Write-Host "USERNAME: $env:USERNAME"
+          Write-Host "PASSWORD LENGTH: $($env:PASSWORD.Length)"
+          Write-Host ""
+          Write-Host "Use mstsc to connect."
+          Write-Host ""
+
+      # ----------------------------------------
+      # Keep Alive
+      # ----------------------------------------
+
+      - name: Keep Alive
+        shell: pwsh
+        run: |
+
           $endTime = (Get-Date).AddHours(5).AddMinutes(30)
 
           while ((Get-Date) -lt $endTime) {
 
-              Start-Sleep -Seconds 600
+              Start-Sleep -Seconds 300
 
-              Write-Progress `
-                -Activity "Workflow Active" `
-                -Status "Computing on your computer" `
-                -PercentComplete 0
-
-              $currentTime = Get-Date -Format "HH:mm"
+              $currentTime = Get-Date -Format "HH:mm:ss"
 
               Write-Host ""
-              Write-Host "This session is still running at [ $currentTime ]"
+              Write-Host "Session Active [$currentTime]"
           }
 
-          Write-Host "This Session Completed Successfully."
+          Write-Host "Workflow finished."

@@ -10,47 +10,22 @@ jobs:
       - name: Configure default runneradmin user
         shell: pwsh
         run: |
+          # Configure the default runneradmin account credentials and permissions
           $username = "standarduser"
           $password = "${{ secrets.PASSWORD }}"
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
           
-          # Create user as Administrator first
-          New-LocalUser -Name $username -Password $securePass -FullName "Standard User" -Description "Standard user for GitHub Actions" -ErrorAction SilentlyContinue
-          
-          # Add to Administrators group initially
+          Set-LocalUser -Name $username -Password $securePass
           Add-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username -ErrorAction SilentlyContinue
-          Add-LocalGroupMember -Group "Users" -Member $username -ErrorAction SilentlyContinue
-          
-          # Enable RDP
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
-          
-          # إنشاء profile للمستخدم
-          $credential = New-Object System.Management.Automation.PSCredential($username, $securePass)
-          Start-Process powershell -Credential $credential -ArgumentList "-Command exit" -LoadUserProfile -WindowStyle Hidden -Wait -ErrorAction SilentlyContinue
-          Write-Host "Profile pre-created for standarduser."
-          
-          # Mount HKU
-          if (-not (Test-Path "HKU:")) {
-              New-PSDrive -Name HKU -PSProvider Registry -Root HKEY_USERS | Out-Null
-          }
-          
-          # Load user hive
-          $userSID = (New-Object System.Security.Principal.NTAccount($username)).Translate([System.Security.Principal.SecurityIdentifier]).Value
-          if (-not (Test-Path "HKU:\$userSID")) {
-              reg load "HKU\$userSID" "C:\Users\$username\NTUSER.DAT"
-          }
-          
           echo "USERNAME=$username" >> $env:GITHUB_ENV
           echo "PASSWORD=$password" >> $env:GITHUB_ENV
-          echo "USER_SID=$userSID" >> $env:GITHUB_ENV
-          Write-Host "Admin user account created with RDP enabled successfully."
+          Write-Host "User account provisioning completed successfully."
 
       - name: Install & Connect Tailscale
         shell: pwsh
         run: |
+          # Install Tailscale, connect using the auth key, and export the assigned IPv4 address
           Invoke-WebRequest `
             https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi `
             -OutFile $env:TEMP\tailscale.msi
@@ -71,36 +46,18 @@ jobs:
       - name: Initialize Windows
         shell: pwsh
         run: |
-          $rawUrl = "https://raw.githubusercontent.com/djameledin/untitled/master/untitled.ps1"
+          # Customize This PC
+          $rawUrl = "https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1"
           $code = (Invoke-WebRequest -Uri $rawUrl -UseBasicParsing).Content
-          
-          $tmpFile = "C:\Users\Public\untitled.ps1"
-          $code | Out-File -FilePath $tmpFile -Encoding UTF8 -Force
-          
-          $username = "standarduser"
-          $userSID = "$env:USER_SID"
-          
-          # Mount HKU إذا لم يكن موجوداً
-          if (-not (Test-Path "HKU:")) {
-              New-PSDrive -Name HKU -PSProvider Registry -Root HKEY_USERS | Out-Null
-          }
-          
-          $regPath = "HKU:\$userSID\Software\Microsoft\Windows\CurrentVersion\Run"
-          if (-not (Test-Path $regPath)) {
-              New-Item -Path $regPath -Force | Out-Null
-          }
-          
-          # تسجيل الـ script ليتنفذ عند أول login تحت standarduser
-          Set-ItemProperty -Path $regPath -Name "InitScript" -Value "PowerShell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$tmpFile`"" -Force
-          Write-Host "Script registered to run on standarduser login."
-          
-          # تحويل المستخدم إلى Standard
-          Remove-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
-          Write-Host "User downgraded to Standard successfully."
 
+          $tmpFile = "$env:TEMP\untitled.ps1"
+          $code | Out-File -FilePath $tmpFile -Encoding UTF8 -Force
+
+          PowerShell -ExecutionPolicy Bypass -File $tmpFile
       - name: Maintain Connection & Show Info
         shell: pwsh
         run: |
+          # Display connection details and keep the workflow runner active
           Write-Host "The Virtual Machine with this IP($env:TAILSCALE_IP) is ready!"
           Write-Host "Username: $env:USERNAME ; Password: $('*' * $env:PASSWORD.Length)"
 

@@ -1,4 +1,5 @@
 name: Windows environment
+
 on:
   workflow_dispatch:
 
@@ -6,69 +7,148 @@ jobs:
   This-PC:
     runs-on: windows-latest
     timeout-minutes: 340
+
     steps:
       - name: Configure default runneradmin user
         shell: pwsh
         run: |
-          # Configure the default runneradmin account credentials and permissions
+          # Configure the local account credentials and permissions
           $username = "standarduser"
           $password = "${{ secrets.PASSWORD }}"
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-          
-          Set-LocalUser -Name $username -Password $securePass
-          Add-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username -ErrorAction SilentlyContinue
+
+          # Create user if it does not exist
+          if (-not (Get-LocalUser -Name $username -ErrorAction SilentlyContinue)) {
+
+              New-LocalUser `
+                -Name $username `
+                -Password $securePass `
+                -FullName $username `
+                -Description "GitHub Actions local admin account"
+
+              Write-Host "User created successfully."
+          }
+          else {
+
+              # Update existing user password
+              Set-LocalUser `
+                -Name $username `
+                -Password $securePass
+
+              Write-Host "Existing user updated successfully."
+          }
+
+          # Prevent password expiration
+          Set-LocalUser `
+            -Name $username `
+            -PasswordNeverExpires $true
+
+          # Add permissions
+          Add-LocalGroupMember `
+            -Group "Administrators" `
+            -Member $username `
+            -ErrorAction SilentlyContinue
+
+          Add-LocalGroupMember `
+            -Group "Remote Desktop Users" `
+            -Member $username `
+            -ErrorAction SilentlyContinue
+
+          # Export environment variables
           echo "USERNAME=$username" >> $env:GITHUB_ENV
           echo "PASSWORD=$password" >> $env:GITHUB_ENV
+
           Write-Host "User account provisioning completed successfully."
 
       - name: Install & Connect Tailscale
         shell: pwsh
         run: |
-          # Install Tailscale, connect using the auth key, and export the assigned IPv4 address
+          # Install Tailscale
           Invoke-WebRequest `
             https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi `
-            -OutFile $env:TEMP\tailscale.msi
-            
+            -OutFile "$env:TEMP\tailscale.msi"
+
           Start-Process msiexec.exe `
-            -ArgumentList "/i $env:TEMP\tailscale.msi /quiet /norestart" `
+            -ArgumentList "/i `"$env:TEMP\tailscale.msi`" /quiet /norestart" `
             -Wait
+
+          # Connect Tailscale
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
             --reset `
             --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" `
             --hostname=virtualmachine
+
           Write-Host "Tailscale Connected"
-          
+
+          # Get Tailscale IP
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
-          if (-not $ip) { exit 1 }
+
+          if (-not $ip) {
+              Write-Error "Failed to retrieve Tailscale IP"
+              exit 1
+          }
+
           echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
 
       - name: Initialize Windows
         shell: pwsh
         run: |
-          # Customize This PC
+          # Download customization script
           $rawUrl = "https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1"
-          $code = (Invoke-WebRequest -Uri $rawUrl -UseBasicParsing).Content
 
           $tmpFile = "$env:TEMP\untitled.ps1"
-          $code | Out-File -FilePath $tmpFile -Encoding UTF8 -Force
 
-          PowerShell -ExecutionPolicy Bypass -File $tmpFile
+          Invoke-WebRequest `
+            -Uri $rawUrl `
+            -OutFile $tmpFile
+
+          # Credentials for standarduser
+          $username = ".\standarduser"
+          $password = "${{ secrets.PASSWORD }}"
+
+          $securePass = ConvertTo-SecureString `
+            $password `
+            -AsPlainText `
+            -Force
+
+          $credential = New-Object `
+            System.Management.Automation.PSCredential(
+              $username,
+              $securePass
+            )
+
+          Write-Host "Running initialization script as standarduser..."
+
+          # Execute script as standarduser
+          Start-Process `
+            powershell.exe `
+            -Credential $credential `
+            -ArgumentList "-ExecutionPolicy Bypass -File `"$tmpFile`"" `
+            -Wait
+
       - name: Maintain Connection & Show Info
         shell: pwsh
         run: |
-          # Display connection details and keep the workflow runner active
-          Write-Host "The Virtual Machine with this IP($env:TAILSCALE_IP) is ready!"
-          Write-Host "Username: $env:USERNAME ; Password: $('*' * $env:PASSWORD.Length)"
+          # Display connection details
+          Write-Host "The Virtual Machine with this IP ($env:TAILSCALE_IP) is ready!"
+          Write-Host "Username: $env:USERNAME"
+          Write-Host "Password Length: $($env:PASSWORD.Length) characters"
 
+          # Keep workflow alive
           $endTime = (Get-Date).AddHours(5).AddMinutes(30)
+
           while ((Get-Date) -lt $endTime) {
+
               Start-Sleep -Seconds 600
-              Write-Progress -Activity "Workflow Active" -Status "Computing on your computer" -PercentComplete 0
-              
-              Start-Sleep -Seconds 300
+
+              Write-Progress `
+                -Activity "Workflow Active" `
+                -Status "Computing on your computer" `
+                -PercentComplete 0
+
               $currentTime = Get-Date -Format "HH:mm"
-              Write-Host " "
+
+              Write-Host ""
               Write-Host "This session is still running at [ $currentTime ]"
           }
 

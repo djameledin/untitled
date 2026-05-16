@@ -1,5 +1,4 @@
 name: Windows environment
-
 on:
   workflow_dispatch:
 
@@ -7,79 +6,66 @@ jobs:
   This-PC:
     runs-on: windows-latest
     timeout-minutes: 340
-
     steps:
-      - name: Set variables
+      - name: Configure default runneradmin user
         shell: pwsh
         run: |
-          echo "USER=standarduser" >> $env:GITHUB_ENV
-          echo "PASS=${{ secrets.PASSWORD }}" >> $env:GITHUB_ENV
+          # Configure the default runneradmin account credentials and permissions
+          $username = "runneradmin"
+          $password = "${{ secrets.PASSWORD }}"
+          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
+          
+          Set-LocalUser -Name $username -Password $securePass
+          Add-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username -ErrorAction SilentlyContinue
+          echo "USERNAME=$username" >> $env:GITHUB_ENV
+          echo "PASSWORD=$password" >> $env:GITHUB_ENV
+          Write-Host "User account provisioning completed successfully."
 
       - name: Install & Connect Tailscale
         shell: pwsh
         run: |
-          Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi -OutFile $env:TEMP\t.msi
-          Start-Process msiexec.exe -ArgumentList "/i $env:TEMP\t.msi /quiet /norestart" -Wait
-
+          # Install Tailscale, connect using the auth key, and export the assigned IPv4 address
+          Invoke-WebRequest `
+            https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi `
+            -OutFile $env:TEMP\tailscale.msi
+            
+          Start-Process msiexec.exe `
+            -ArgumentList "/i $env:TEMP\tailscale.msi /quiet /norestart" `
+            -Wait
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
             --reset `
             --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" `
-            --hostname=vm
-
+            --hostname=virtualmachine-windowsserver
+          Write-Host "Tailscale Connected"
+          
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+          if (-not $ip) { exit 1 }
           echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
 
-      - name: Create Standard User
+      - name: Initialize Windows
         shell: pwsh
         run: |
-          $sec = ConvertTo-SecureString $env:PASS -AsPlainText -Force
-          New-LocalUser $env:USER -Password $sec -FullName "Standard User"
-          Add-LocalGroupMember -Group "Users" -Member $env:USER
+          # Customize your windows appearance
+          Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy Bypass
+          iex (Invoke-WebRequest "https://raw.githubusercontent.com/djameledin/your-desktop/refs/heads/main/untitled.ps1").Content
 
-      - name: Enable Auto Login
+      - name: Maintain Connection & Show Info
         shell: pwsh
         run: |
-          $key="HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
+          # Display connection details and keep the workflow runner active
+          Write-Host "The Virtual Machine with this IP($env:TAILSCALE_IP) is ready!"
+          Write-Host "Username: $env:USERNAME ; Password: $('*' * $env:PASSWORD.Length)"
 
-          Set-ItemProperty $key AutoAdminLogon "1"
-          Set-ItemProperty $key DefaultUserName $env:USER
-          Set-ItemProperty $key DefaultPassword $env:PASS
-          Set-ItemProperty $key DefaultDomainName "."
-
-      - name: Enable RDP
-        shell: pwsh
-        run: |
-          Set-ItemProperty "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0
-
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-
-          Set-Service TermService -StartupType Automatic
-          Start-Service TermService
-
-      - name: Create Elevated First Logon Task
-        shell: pwsh
-        run: |
-          $scriptPath="C:\init.ps1"
-          $url="https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1"
-
-          Invoke-WebRequest $url -OutFile $scriptPath
-
-          $action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-ExecutionPolicy Bypass -File $scriptPath"
-          $trigger = New-ScheduledTaskTrigger -AtLogOn
-          $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
-
-          Register-ScheduledTask -TaskName "FirstLogonInit" -Action $action -Trigger $trigger -Principal $principal -Force
-
-      - name: Maintain Connection & Keep Alive
-        shell: pwsh
-        run: |
-          Write-Host "VM ready"
-          Write-Host "User: $env:USER"
-          Write-Host "IP: $env:TAILSCALE_IP"
-
-          $end=(Get-Date).AddHours(5).AddMinutes(30)
-
-          while((Get-Date)-lt$end){
-              Start-Sleep 600
-              Write-Host (Get-Date)
+          $endTime = (Get-Date).AddHours(5).AddMinutes(30)
+          while ((Get-Date) -lt $endTime) {
+              Start-Sleep -Seconds 600
+              Write-Progress -Activity "Workflow Active" -Status "Computing on your computer" -PercentComplete 0
+              
+              Start-Sleep -Seconds 300
+              $currentTime = Get-Date -Format "HH:mm"
+              Write-Host " "
+              Write-Host "This session is still running at [ $currentTime ]"
           }
+
+          Write-Host "This Session Completed Successfully."

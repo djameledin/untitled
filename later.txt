@@ -1,0 +1,66 @@
+# ===============================================
+# PS1 Script: Restrict C Drive via Group Policy
+# Desktop remains accessible
+# ===============================================
+
+# تأكد من التشغيل كمسؤول
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Write-Error "Please run this script as Administrator!"
+    exit
+}
+
+# مسار GPO registry
+$regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"
+
+# أنشئ المفتاح إذا لم يكن موجودًا
+if (-not (Test-Path $regPath)) {
+    New-Item -Path $regPath -Force | Out-Null
+}
+
+# قيمة منع الوصول إلى محرك C فقط
+# 4 = C
+Set-ItemProperty -Path $regPath -Name "NoDrives" -Value 4 -Type DWord
+Set-ItemProperty -Path $regPath -Name "NoViewOnDrive" -Value 4 -Type DWord
+
+Write-Output "Restriction applied to C drive via Group Policy registry."
+
+# تحديث السياسات لتطبيق التغيير فورًا
+Write-Output "Applying policy..."
+gpupdate /force | Out-Null
+
+Write-Output "Done. Desktop folder remains accessible."
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Write-Error "Run as administrator!"
+    exit
+}
+
+$regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"
+
+if (-not (Test-Path $regPath)) {
+    New-Item -Path $regPath -Force | Out-Null
+}
+
+$CDriveValue = 4
+
+Set-ItemProperty -Path $regPath -Name "NoDrives" -Value $CDriveValue -Type DWord
+Set-ItemProperty -Path $regPath -Name "NoViewOnDrive" -Value $CDriveValue -Type DWord
+
+Write-Output "Restriction applied to C drive."
+Write-Output "Log out or restart to apply changes."

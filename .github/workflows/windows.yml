@@ -10,21 +10,21 @@ jobs:
       - name: Configure default runneradmin user
         shell: pwsh
         run: |
-          # Configure the default runneradmin account credentials and permissions
-          $username = "runneradmin"
+          # Create a new Standard User account with specified credentials
+          $username = "standarduser"
           $password = "${{ secrets.PASSWORD }}"
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
           
-          Set-LocalUser -Name $username -Password $securePass
-          # Remove from Administrators group to ensure Standard User permissions
-          Remove-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
-          # Add only to Remote Desktop Users group (Standard User permissions)
+          # Create new local user account
+          New-LocalUser -Name $username -Password $securePass -FullName "Standard User" -Description "Standard user for GitHub Actions" -ErrorAction SilentlyContinue
+          
+          # Add user to Remote Desktop Users group only (Standard User permissions)
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username -ErrorAction SilentlyContinue
           Add-LocalGroupMember -Group "Users" -Member $username -ErrorAction SilentlyContinue
+          
           echo "USERNAME=$username" >> $env:GITHUB_ENV
           echo "PASSWORD=$password" >> $env:GITHUB_ENV
-          Write-Host "User account provisioning completed successfully."
-
+          Write-Host "Standard user account created successfully."
       - name: Install & Connect Tailscale
         shell: pwsh
         run: |

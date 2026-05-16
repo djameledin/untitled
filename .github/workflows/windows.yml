@@ -1,82 +1,72 @@
-name: Windows Environment
+name: Windows RDP Ready
 
 on:
   workflow_dispatch:
 
 jobs:
-  This-PC:
+  pc:
     runs-on: windows-latest
     timeout-minutes: 340
 
     steps:
 
-      - name: Create User
+      - name: Setup User + RDP
         shell: pwsh
         run: |
-          $username = "standarduser"
-          $password = "${{ secrets.PASSWORD }}"
-          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
+          $u="standarduser"
+          $p="${{ secrets.PASSWORD }}"
+          $s=ConvertTo-SecureString $p -AsPlainText -Force
 
-          if (-not (Get-LocalUser $username -ErrorAction SilentlyContinue)) {
-              New-LocalUser -Name $username -Password $securePass -FullName $username
+          if(-not(Get-LocalUser $u -ea 0)){
+            New-LocalUser $u -Password $s
           } else {
-              Set-LocalUser -Name $username -Password $securePass
+            Set-LocalUser $u -Password $s
           }
 
-          Set-LocalUser -Name $username -PasswordNeverExpires $true
+          Add-LocalGroupMember "Administrators" $u -ea 0
+          Add-LocalGroupMember "Remote Desktop Users" $u -ea 0
 
-          Add-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username -ErrorAction SilentlyContinue
-
-          echo "USERNAME=$username" >> $env:GITHUB_ENV
-          echo "PASSWORD=$password" >> $env:GITHUB_ENV
-
-      - name: Enable RDP
-        shell: pwsh
-        run: |
-          Set-ItemProperty 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -Value 0
+          Set-ItemProperty 'HKLM:\System\CurrentControlSet\Control\Terminal Server' fDenyTSConnections 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-          reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v EnableFirstLogonAnimation /t REG_DWORD /d 0 /f
-          reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Personalization" /v NoLockScreen /t REG_DWORD /d 1 /f
-
-      - name: Install Tailscale
+      - name: Warm Profile (fix gray screen)
         shell: pwsh
         run: |
-          Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi -OutFile "$env:TEMP\tailscale.msi"
-          Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\tailscale.msi`" /quiet /norestart" -Wait
+          $u="standarduser"
+          $p="${{ secrets.PASSWORD }}"
+          $s=ConvertTo-SecureString $p -AsPlainText -Force
+          $c=New-Object PSCredential(".\$u",$s)
 
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname=virtualmachine
+          Start-Process "cmd.exe" -Credential $c -ArgumentList "/c exit" -Wait
 
-          $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
-          echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
-
-      - name: RDP Login Task
+      - name: Enable Login Script
         shell: pwsh
         run: |
-          $u = "standarduser"
-          $p = "${{ secrets.PASSWORD }}"
-          $path = "$env:ProgramData\init.ps1"
+          $u="standarduser"
+          $p="${{ secrets.PASSWORD }}"
+          $path="C:\ProgramData\init.ps1"
 
           Invoke-WebRequest "https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1" -OutFile $path
 
-          $action = New-ScheduledTaskAction "powershell.exe" "-ExecutionPolicy Bypass -File `"$path`""
-          $trigger = New-ScheduledTaskTrigger -AtLogOn -User $u
+          $a=New-ScheduledTaskAction "powershell.exe" "-ExecutionPolicy Bypass -File `"$path`""
+          $t=New-ScheduledTaskTrigger -AtLogOn -User $u
 
-          Register-ScheduledTask -TaskName "RunOnRDPLogin" -Action $action -Trigger $trigger -User $u -Password $p -RunLevel Highest -Force
+          Register-ScheduledTask RunOnRDPLogin -Action $a -Trigger $t -User $u -Password $p -RunLevel Highest -Force
+
+      - name: Tailscale
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi -OutFile $env:TEMP\t.msi
+          Start-Process msiexec.exe "/i $env:TEMP\t.msi /quiet /norestart" -Wait
+
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname=vm
+
+          $ip=&"$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+          echo "IP=$ip" >> $env:GITHUB_ENV
 
       - name: Info
         shell: pwsh
         run: |
-          Write-Host "IP: $env:TAILSCALE_IP"
-          Write-Host "USER: $env:USERNAME"
-          Write-Host "READY - runs on RDP login"
-
-      - name: Keep Alive
-        shell: pwsh
-        run: |
-          $end = (Get-Date).AddHours(5).AddMinutes(30)
-          while ((Get-Date) -lt $end) {
-              Start-Sleep 300
-              Write-Host "Active: $(Get-Date -Format HH:mm:ss)"
-          }
+          Write-Host "RDP READY"
+          Write-Host $env:IP
+          Write-Host "user: standarduser"

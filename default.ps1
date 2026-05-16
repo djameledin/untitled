@@ -71,3 +71,6 @@ Start-Sleep -Seconds 2
 Start-Process explorer.exe
 Start-Sleep -Seconds 1
 (New-Object -ComObject Shell.Application).Windows() | Where-Object { $_.Name -in @("File Explorer", "Windows Explorer") } | ForEach-Object { $_.Quit() }
+
+Start-Sleep -Seconds 3
+exit

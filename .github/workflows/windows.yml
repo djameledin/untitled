@@ -27,7 +27,7 @@ jobs:
         run: |
           # Install Tailscale, connect using the auth key, and export the assigned IPv4 address
           Invoke-WebRequest `
-            https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi `
+            https://pkgs.tailscale.com/stable/tailscale-setup-1.98.2-amd64.msi`
             -OutFile $env:TEMP\tailscale.msi
             
           Start-Process msiexec.exe `
@@ -36,7 +36,7 @@ jobs:
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
             --reset `
             --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" `
-            --hostname=virtualmachine-windowsserver
+            --hostname=virtualmachine
           Write-Host "Tailscale Connected"
           
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4

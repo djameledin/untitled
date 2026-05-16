@@ -1,73 +1,73 @@
 Set-ExecutionPolicy Bypass -Scope Process -Force
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) { exit }
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]"Administrator")) { Write-Error "CRITICAL: Run as administrator!"; exit }
 
 Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public class NativeWallpaper
-{
-    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-    public static extern bool SystemParametersInfo(uint uAction,uint uParam,string lpvParam,uint fuWinIni);
-    public static void SetWallpaper(string path){ SystemParametersInfo(20,0,path,3); }
+using System; using System.Runtime.InteropServices;
+public class NativeWallpaper {
+    [DllImport("user32.dll", CharSet=CharSet.Auto, SetLastError=true)] public static extern bool SystemParametersInfo(uint uAction, uint uParam, string lpvParam, uint fuWinIni);
+    public static bool SetWallpaper(string path) { return SystemParametersInfo(0x0014, 0, path, 0x0001 | 0x0002); }
+}
+public class Win32 {
+    [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int i);
+    [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr h, int i, int v);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
 }
 "@
 
-$regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"
-if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
-Set-ItemProperty -Path $regPath -Name "NoRun" -Value 1
-$CDriveValue = 4
-Set-ItemProperty -Path $regPath -Name "NoDrives" -Value $CDriveValue -Type DWord
-Set-ItemProperty -Path $regPath -Name "NoViewOnDrive" -Value $CDriveValue -Type DWord
+$WallpaperUrl, $WallpaperPath, $SW_HIDE = "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/default.jpg", "C:\Users\Public\Pictures\wallpaper.jpg", 0
+$Targets, $processesToHide = @("D:\DATALOSS_WARNING_README.txt", "D:\CollectGuestLogsTemp"), @("hosted-compute-agent", "tailscale-ipn")
+$regPath, $sysPath, $p = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+$startMenus = @("$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs")
 
-$Folders = @{
-    "Desktop"   = "D:\Desktop"
-    "Documents" = "D:\Documents"
-    "Downloads" = "D:\Downloads"
-    "Pictures"  = "D:\Pictures"
-    "Videos"    = "D:\Videos"
-    "Music"     = "D:\Music"
-}
+if (-not (Test-Path $WallpaperPath)) { Invoke-WebRequest -Uri $WallpaperUrl -OutFile $WallpaperPath -UseBasicParsing -ErrorAction SilentlyContinue }
+if (Test-Path $WallpaperPath) { [NativeWallpaper]::SetWallpaper($WallpaperPath) | Out-Null }
+
+foreach ($Item in $Targets) { if (Test-Path $Item) { Remove-Item $Item -Recurse -Force -ErrorAction SilentlyContinue } }
+if (Test-Path "D:\a") { attrib +h +s "D:\a" }
+
+$Folders = @{ "Desktop"="D:\Desktop"; "Personal"="D:\Documents"; "{374DE290-123F-4565-9164-39C4925E467B}"="D:\Downloads"; "My Pictures"="D:\Pictures"; "My Video"="D:\Videos"; "My Music"="D:\Music" }
 foreach ($Key in $Folders.Keys) {
     $Path = $Folders[$Key]
-    New-Item -ItemType Directory -Path $Path -Force | Out-Null
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" -Name $Key -Value $Path
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders" -Name $Key -Value $Path
+    if (-not (Test-Path $Path)) { New-Item -ItemType Directory -Path $Path -Force | Out-Null }
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" -Name $Key -Value $Path -Force
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders" -Name $Key -Value $Path -Force
 }
 
-$desktopFiles = Get-ChildItem "C:\Users\*" -Directory | ForEach-Object {
-    $d = Join-Path $_.FullName "Desktop"
-    if (Test-Path $d) { Get-ChildItem $d -File -ErrorAction SilentlyContinue }
+Remove-Item "$env:Public\Desktop\*.lnk" -Force -ErrorAction SilentlyContinue
+Remove-Item "$env:USERPROFILE\Desktop\*.lnk" -Force -ErrorAction SilentlyContinue
+foreach ($path in $startMenus) { Get-ChildItem $path -Recurse -Filter "*.lnk" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }
+
+Move-Item "$HOME\Desktop\*" "D:\Desktop" -Force -ErrorAction SilentlyContinue
+Move-Item "$HOME\Documents\*" "D:\Documents" -Force -ErrorAction SilentlyContinue
+Move-Item "$HOME\Downloads\*" "D:\Downloads" -Force -ErrorAction SilentlyContinue
+Move-Item "$HOME\Pictures\*" "D:\Pictures" -Force -ErrorAction SilentlyContinue
+Move-Item "$HOME\Videos\*" "D:\Videos" -Force -ErrorAction SilentlyContinue
+Move-Item "$HOME\Music\*" "D:\Music" -Force -ErrorAction SilentlyContinue
+
+foreach ($procName in $processesToHide) {
+    $procs = Get-Process -Name $procName -ErrorAction SilentlyContinue
+    foreach ($pr in $procs) {
+        if ($pr.MainWindowHandle -ne [IntPtr]::Zero -and $pr.MainWindowTitle -ne "") {
+            $style = [Win32]::GetWindowLong($pr.MainWindowHandle, -20)
+            [Win32]::SetWindowLong($pr.MainWindowHandle, -20, ($style -bor 0x80 -band -bnot 0x40000)) | Out-Null
+            [Win32]::ShowWindow($pr.MainWindowHandle, $SW_HIDE) | Out-Null
+        }
+    }
 }
-if ($desktopFiles) { $desktopFiles | Remove-Item -Force -ErrorAction SilentlyContinue }
 
-$WallpaperUrl = "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/default.jpg"
-$WallpaperPath = "C:\Users\Public\Pictures\wallpaper.jpg"
-if (-not (Test-Path $WallpaperPath)) { Invoke-WebRequest -Uri $WallpaperUrl -OutFile $WallpaperPath -UseBasicParsing -ErrorAction SilentlyContinue }
-if (Test-Path $WallpaperPath) { [NativeWallpaper]::SetWallpaper($WallpaperPath) }
+if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
+Set-ItemProperty $p "AppsUseLightTheme" 1 -Force
+Set-ItemProperty $p "SystemUsesLightTheme" 1 -Force
 
-$p = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-Set-ItemProperty $p "AppsUseLightTheme" 1
-Set-ItemProperty $p "SystemUsesLightTheme" 1
+if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+if (-not (Test-Path $sysPath)) { New-Item -Path $sysPath -Force | Out-Null }
+Set-ItemProperty -Path $regPath -Name "NoDrives" -Value 4 -Type DWord -Force
+Set-ItemProperty -Path $regPath -Name "NoViewOnDrive" -Value 4 -Type DWord -Force
+Set-ItemProperty -Path $sysPath -Name "DisableCMD" -Value 1 -Type DWord -Force
+Set-ItemProperty -Path $sysPath -Name "DisableRegistryTools" -Value 1 -Type DWord -Force
 
-Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+if (Get-Process -Name explorer -ErrorAction SilentlyContinue) { Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue }
+Start-Sleep -Seconds 2
 Start-Process explorer.exe
-Start-Sleep -Seconds 3
-
-$Apps = @(
-    @{ Name = "Windows Calculator"; ID = "9WZDNCRFHVN5" },
-    @{ Name = "Windows Notepad"; ID = "9MSMLRH6LZF3" },
-    @{ Name = "Microsoft Sticky Notes"; ID = "9NBLGGH4QGHW" },
-    @{ Name = "Snipping Tool"; ID = "9MZ95KL8MR0L" },
-    @{ Name = "Paint"; ID = "9PCFS5B6T72H" },
-    @{ Name = "Windows Clock"; ID = "9WZDNCRFJ3PR" }
-)
-function Install-App($AppId,$AppName){
-    try { $installed = (winget list --id $AppId --source msstore | Select-String $AppId) -ne $null } catch { $installed=$false }
-    if (-not $installed) {
-        Write-Host "Installing $AppName..."
-        try { winget install --id $AppId --source msstore --accept-source-agreements --accept-package-agreements -h } catch { Write-Warning "Failed to install $AppName. Retry later." }
-    } else { Write-Host "$AppName is already installed." }
-}
-foreach ($app in $Apps) { Install-App $app.ID $app.Name }
-
-Write-Host "System setup complete."
+Start-Sleep -Seconds 1
+(New-Object -ComObject Shell.Application).Windows() | Where-Object { $_.Name -in @("File Explorer", "Windows Explorer") } | ForEach-Object { $_.Quit() }

@@ -92,11 +92,8 @@ Set-ItemProperty -Path $regPath -Name "NoViewOnDrive" -Value 4 -Type DWord -Forc
 Set-ItemProperty -Path $sysPath -Name "DisableCMD" -Value 1 -Type DWord -Force
 Set-ItemProperty -Path $sysPath -Name "DisableRegistryTools" -Value 1 -Type DWord -Force
 
-if (Get-Process -Name explorer -ErrorAction SilentlyContinue) { Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue }
-Start-Sleep -Seconds 2
+Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+Start-Sleep 3
 Start-Process explorer.exe
-Start-Sleep -Seconds 1
-(New-Object -ComObject Shell.Application).Windows() | Where-Object { $_.Name -in @("File Explorer", "Windows Explorer") } | ForEach-Object { $_.Quit() }
-
-Start-Sleep -Seconds 3
+Start-Sleep 3
 exit

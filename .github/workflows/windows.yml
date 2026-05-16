@@ -1,83 +1,82 @@
-name: Windows RDP
+name: Windows environment
 
 on:
   workflow_dispatch:
 
 jobs:
-  pc:
+  This-PC:
     runs-on: windows-latest
     timeout-minutes: 340
 
     steps:
-
-      - name: User + RDP
+      - name: Configure standard user (rename + demote admin)
         shell: pwsh
         run: |
-          $u="standarduser"
-          $p="${{ secrets.PASSWORD }}"
-          $s=ConvertTo-SecureString $p -AsPlainText -Force
+          $oldName = "runneradmin"
+          $newName = "standarduser"
+          $password = "${{ secrets.PASSWORD }}"
+          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
 
-          if(-not(Get-LocalUser $u -ea 0)){
-            New-LocalUser $u -Password $s
-          } else {
-            Set-LocalUser $u -Password $s
-          }
+          Set-LocalUser -Name $oldName -Password $securePass
+          Remove-LocalGroupMember -Group "Administrators" -Member $oldName -ErrorAction SilentlyContinue
+          Rename-LocalUser -Name $oldName -NewName $newName
+          Add-LocalGroupMember -Group "Users" -Member $newName -ErrorAction SilentlyContinue
 
-          Add-LocalGroupMember "Administrators" $u -ea 0
-          Add-LocalGroupMember "Remote Desktop Users" $u -ea 0
+          echo "USERNAME=$newName" >> $env:GITHUB_ENV
+          echo "PASSWORD=$password" >> $env:GITHUB_ENV
 
-          Set-ItemProperty 'HKLM:\System\CurrentControlSet\Control\Terminal Server' fDenyTSConnections 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Write-Host "runneradmin converted to standarduser successfully."
 
-      - name: Fix Profile (no gray screen)
+      - name: Install & Connect Tailscale
         shell: pwsh
         run: |
-          $u="standarduser"
-          $p="${{ secrets.PASSWORD }}"
-          $s=ConvertTo-SecureString $p -AsPlainText -Force
-          $c=New-Object PSCredential(".\$u",$s)
+          Invoke-WebRequest `
+            https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi `
+            -OutFile $env:TEMP\tailscale.msi
 
-          Start-Process "cmd.exe" -Credential $c -ArgumentList "/c exit" -Wait
-
-      - name: Install Tailscale
-        shell: pwsh
-        run: |
-          Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi -OutFile $env:TEMP\t.msi
-          Start-Process msiexec.exe "/i $env:TEMP\t.msi /quiet /norestart" -Wait
+          Start-Process msiexec.exe `
+            -ArgumentList "/i $env:TEMP\tailscale.msi /quiet /norestart" `
+            -Wait
 
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
+            --reset `
             --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" `
-            --hostname=vm
+            --hostname=virtualmachine
+
+          Write-Host "Tailscale Connected"
 
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
-          echo "IP=$ip" >> $env:GITHUB_ENV
+          if (-not $ip) { exit 1 }
 
-      - name: Enable RDP Login Script
+          echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
+
+      - name: Initialize Windows
         shell: pwsh
         run: |
-          $u="standarduser"
-          $p="${{ secrets.PASSWORD }}"
-          $path="C:\ProgramData\init.ps1"
+          $rawUrl = "https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1"
+          $code = (Invoke-WebRequest -Uri $rawUrl -UseBasicParsing).Content
 
-          Invoke-WebRequest "https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1" -OutFile $path
+          $tmpFile = "$env:TEMP\untitled.ps1"
+          $code | Out-File -FilePath $tmpFile -Encoding UTF8 -Force
 
-          $a=New-ScheduledTaskAction "powershell.exe" "-ExecutionPolicy Bypass -File `"$path`""
-          $t=New-ScheduledTaskTrigger -AtLogOn -User $u
+          PowerShell -ExecutionPolicy Bypass -File $tmpFile
 
-          Register-ScheduledTask RunOnRDPLogin -Action $a -Trigger $t -User $u -Password $p -RunLevel Highest -Force
-
-      - name: Maintain Connection
+      - name: Maintain Connection & Show Info
         shell: pwsh
         run: |
-          $end=(Get-Date).AddHours(5).AddMinutes(30)
-          while((Get-Date) -lt $end){
-            Start-Sleep 300
-            Write-Host "Alive: $(Get-Date -Format HH:mm:ss)"
+          Write-Host "The Virtual Machine is ready!"
+          Write-Host "Username: $env:USERNAME ; Password: $('*' * $env:PASSWORD.Length)"
+          Write-Host "IP: $env:TAILSCALE_IP"
+
+          $endTime = (Get-Date).AddHours(5).AddMinutes(30)
+
+          while ((Get-Date) -lt $endTime) {
+              Start-Sleep -Seconds 600
+              Write-Progress -Activity "Workflow Active" -Status "Running..." -PercentComplete 0
+
+              Start-Sleep -Seconds 300
+              $currentTime = Get-Date -Format "HH:mm"
+              Write-Host "Still running at [$currentTime]"
           }
 
-      - name: Info
-        shell: pwsh
-        run: |
-          Write-Host "RDP READY"
-          Write-Host "IP: $env:IP"
-          Write-Host "USER: standarduser"
+          Write-Host "Session Completed Successfully."

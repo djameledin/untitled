@@ -9,74 +9,47 @@ jobs:
     timeout-minutes: 340
 
     steps:
-      - name: Configure standard user (rename + demote admin)
+      - name: Set user variables
         shell: pwsh
         run: |
-          $oldName = "runneradmin"
-          $newName = "standarduser"
-          $password = "${{ secrets.PASSWORD }}"
-          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-
-          Set-LocalUser -Name $oldName -Password $securePass
-          Remove-LocalGroupMember -Group "Administrators" -Member $oldName -ErrorAction SilentlyContinue
-          Rename-LocalUser -Name $oldName -NewName $newName
-          Add-LocalGroupMember -Group "Users" -Member $newName -ErrorAction SilentlyContinue
-
-          echo "USERNAME=$newName" >> $env:GITHUB_ENV
-          echo "PASSWORD=$password" >> $env:GITHUB_ENV
-
-          Write-Host "runneradmin converted to standarduser successfully."
+          echo "OLD_USER=runneradmin" >> $env:GITHUB_ENV
+          echo "NEW_USER=standarduser" >> $env:GITHUB_ENV
+          echo "PASSWORD=${{ secrets.PASSWORD }}" >> $env:GITHUB_ENV
 
       - name: Install & Connect Tailscale
         shell: pwsh
         run: |
-          Invoke-WebRequest `
-            https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi `
-            -OutFile $env:TEMP\tailscale.msi
-
-          Start-Process msiexec.exe `
-            -ArgumentList "/i $env:TEMP\tailscale.msi /quiet /norestart" `
-            -Wait
-
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
-            --reset `
-            --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" `
-            --hostname=virtualmachine
-
-          Write-Host "Tailscale Connected"
+          Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi -OutFile $env:TEMP\t.msi
+          Start-Process msiexec.exe -ArgumentList "/i $env:TEMP\t.msi /quiet /norestart" -Wait
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname=vm
 
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
-          if (-not $ip) { exit 1 }
-
           echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
 
       - name: Initialize Windows
         shell: pwsh
         run: |
-          $rawUrl = "https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1"
-          $code = (Invoke-WebRequest -Uri $rawUrl -UseBasicParsing).Content
+          $rawUrl="https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1"
+          $tmp="$env:TEMP\init.ps1"
+          Invoke-WebRequest $rawUrl -OutFile $tmp
+          pwsh -ExecutionPolicy Bypass -File $tmp
 
-          $tmpFile = "$env:TEMP\untitled.ps1"
-          $code | Out-File -FilePath $tmpFile -Encoding UTF8 -Force
-
-          PowerShell -ExecutionPolicy Bypass -File $tmpFile
+          $sec=ConvertTo-SecureString $env:PASSWORD -AsPlainText -Force
+          Set-LocalUser -Name $env:OLD_USER -Password $sec
+          Remove-LocalGroupMember -Group "Administrators" -Member $env:OLD_USER -ErrorAction SilentlyContinue
+          Rename-LocalUser -Name $env:OLD_USER -NewName $env:NEW_USER
+          Add-LocalGroupMember -Group "Users" -Member $env:NEW_USER -ErrorAction SilentlyContinue
 
       - name: Maintain Connection & Show Info
         shell: pwsh
         run: |
-          Write-Host "The Virtual Machine is ready!"
-          Write-Host "Username: $env:USERNAME ; Password: $('*' * $env:PASSWORD.Length)"
+          Write-Host "VM ready"
+          Write-Host "User: $env:NEW_USER"
           Write-Host "IP: $env:TAILSCALE_IP"
 
-          $endTime = (Get-Date).AddHours(5).AddMinutes(30)
+          $end=(Get-Date).AddHours(5).AddMinutes(30)
 
-          while ((Get-Date) -lt $endTime) {
-              Start-Sleep -Seconds 600
-              Write-Progress -Activity "Workflow Active" -Status "Running..." -PercentComplete 0
-
-              Start-Sleep -Seconds 300
-              $currentTime = Get-Date -Format "HH:mm"
-              Write-Host "Still running at [$currentTime]"
+          while((Get-Date)-lt$end){
+              Start-Sleep 600
+              Write-Host (Get-Date)
           }
-
-          Write-Host "Session Completed Successfully."

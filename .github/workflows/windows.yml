@@ -46,6 +46,16 @@ jobs:
           Set-ItemProperty $key DefaultPassword $env:PASS
           Set-ItemProperty $key DefaultDomainName "."
 
+      - name: Enable RDP
+        shell: pwsh
+        run: |
+          Set-ItemProperty "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0
+
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+          Set-Service TermService -StartupType Automatic
+          Start-Service TermService
+
       - name: Create Elevated First Logon Task
         shell: pwsh
         run: |
@@ -63,7 +73,7 @@ jobs:
       - name: Maintain Connection & Keep Alive
         shell: pwsh
         run: |
-          Write-Host "VM is ready and running"
+          Write-Host "VM ready"
           Write-Host "User: $env:USER"
           Write-Host "IP: $env:TAILSCALE_IP"
 
@@ -71,5 +81,5 @@ jobs:
 
           while((Get-Date)-lt$end){
               Start-Sleep 600
-              Write-Host "Keep Alive: $(Get-Date -Format 'HH:mm:ss')"
+              Write-Host (Get-Date)
           }

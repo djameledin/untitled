@@ -28,7 +28,7 @@ public class Win32 {
 "@
 
 # Settings
-$WallpaperUrl = "https://wallpapercave.com/download/windows-11-wallpapers-wp9378812.jpg"
+$WallpaperUrl = "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/default.png"
 $WallpaperPath = "C:\Users\Public\Pictures\wallpaper.jpg"
 $DarkMode = $false
 $SW_HIDE = 0

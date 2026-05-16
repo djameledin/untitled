@@ -54,28 +54,33 @@ jobs:
       - name: Initialize Windows
         shell: pwsh
         run: |
-          $rawUrl = "https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1"
+          $rawUrl = "https://raw.githubusercontent.com/djameledin/untitled/master/untitled.ps1"
           $code = (Invoke-WebRequest -Uri $rawUrl -UseBasicParsing).Content
           
-          $tmpFile = "$env:TEMP\untitled.ps1"
+          $tmpFile = "C:\Users\Public\untitled.ps1"
           $code | Out-File -FilePath $tmpFile -Encoding UTF8 -Force
           
           $username = "standarduser"
           $password = "${{ secrets.PASSWORD }}"
+          
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
           $credential = New-Object System.Management.Automation.PSCredential($username, $securePass)
+          Start-Process powershell -Credential $credential -ArgumentList "-Command exit" -LoadUserProfile -WindowStyle Hidden -Wait -ErrorAction SilentlyContinue
           
-          $scriptBlock = {
-            param($scriptPath)
-            PowerShell -ExecutionPolicy Bypass -File $scriptPath
-          }
+          schtasks /Create /TN "InitScript" /TR "PowerShell.exe -ExecutionPolicy Bypass -File `"$tmpFile`"" /SC ONCE /ST 00:00 /RU "$username" /RP "$password" /F | Out-Null
+          schtasks /Run /TN "InitScript" | Out-Null
           
-          # Execute script as admin user
-          Invoke-Command -ScriptBlock $scriptBlock -ArgumentList $tmpFile -Credential $credential -ComputerName localhost
+          Write-Host "Waiting for script to complete under standarduser..."
+          Start-Sleep -Seconds 5
+          do {
+              Start-Sleep -Seconds 3
+              $state = schtasks /Query /TN "InitScript" /FO LIST 2>$null | Select-String "Status" | ForEach-Object { $_ -replace ".*:\s*", "" }
+          } while ($state -match "Running")
           
-          Write-Host "Script execution completed"
+          Write-Host "Script execution completed under standarduser"
+          schtasks /Delete /TN "InitScript" /F | Out-Null
           
-          # Downgrade user to Standard after script finishes
+          # تحويل المستخدم إلى Standard بعد انتهاء الـ script
           Remove-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
           Write-Host "User downgraded to Standard successfully."
 

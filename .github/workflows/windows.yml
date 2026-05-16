@@ -1,4 +1,4 @@
-name: Windows RDP Ready
+name: Windows RDP
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ jobs:
 
     steps:
 
-      - name: Setup User + RDP
+      - name: User + RDP
         shell: pwsh
         run: |
           $u="standarduser"
@@ -29,7 +29,7 @@ jobs:
           Set-ItemProperty 'HKLM:\System\CurrentControlSet\Control\Terminal Server' fDenyTSConnections 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-      - name: Warm Profile (fix gray screen)
+      - name: Fix Profile (no gray screen)
         shell: pwsh
         run: |
           $u="standarduser"
@@ -39,7 +39,20 @@ jobs:
 
           Start-Process "cmd.exe" -Credential $c -ArgumentList "/c exit" -Wait
 
-      - name: Enable Login Script
+      - name: Install Tailscale
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi -OutFile $env:TEMP\t.msi
+          Start-Process msiexec.exe "/i $env:TEMP\t.msi /quiet /norestart" -Wait
+
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
+            --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" `
+            --hostname=vm
+
+          $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+          echo "IP=$ip" >> $env:GITHUB_ENV
+
+      - name: Enable RDP Login Script
         shell: pwsh
         run: |
           $u="standarduser"
@@ -53,20 +66,18 @@ jobs:
 
           Register-ScheduledTask RunOnRDPLogin -Action $a -Trigger $t -User $u -Password $p -RunLevel Highest -Force
 
-      - name: Tailscale
+      - name: Maintain Connection
         shell: pwsh
         run: |
-          Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi -OutFile $env:TEMP\t.msi
-          Start-Process msiexec.exe "/i $env:TEMP\t.msi /quiet /norestart" -Wait
-
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname=vm
-
-          $ip=&"$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
-          echo "IP=$ip" >> $env:GITHUB_ENV
+          $end=(Get-Date).AddHours(5).AddMinutes(30)
+          while((Get-Date) -lt $end){
+            Start-Sleep 300
+            Write-Host "Alive: $(Get-Date -Format HH:mm:ss)"
+          }
 
       - name: Info
         shell: pwsh
         run: |
           Write-Host "RDP READY"
-          Write-Host $env:IP
-          Write-Host "user: standarduser"
+          Write-Host "IP: $env:IP"
+          Write-Host "USER: standarduser"

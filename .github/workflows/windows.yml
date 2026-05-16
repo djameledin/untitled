@@ -49,14 +49,39 @@ jobs:
       - name: Initialize Windows
         shell: pwsh
         run: |
-          # Customize This PC
+          # Download the initialization script
           $rawUrl = "https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1"
           $code = (Invoke-WebRequest -Uri $rawUrl -UseBasicParsing).Content
-
+          
           $tmpFile = "$env:TEMP\untitled.ps1"
           $code | Out-File -FilePath $tmpFile -Encoding UTF8 -Force
+          
+          # Get credentials for standard user
+          $username = "standarduser"
+          $password = "${{ secrets.PASSWORD }}"
+          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
+          $credential = New-Object System.Management.Automation.PSCredential($username, $securePass)
+          
+          # Add standarduser to Administrators group temporarily
+          Add-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
+          Write-Host "Added $username to Administrators group"
+          
+          # Run the script as standarduser with admin privileges
+          $scriptBlock = {
+            param($scriptPath)
+            PowerShell -ExecutionPolicy Bypass -File $scriptPath
+          }
+          
+          Invoke-Command -ScriptBlock $scriptBlock -ArgumentList $tmpFile -Credential $credential -ComputerName localhost
+          
+          Write-Host "Script execution completed"
+          
+          # Remove standarduser from Administrators group - restore to Standard User
+          Remove-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
+          Write-Host "Removed $username from Administrators group - restored to Standard User privileges"
+          
+          Write-Host "Initialization completed - $username is now Standard User"
 
-          PowerShell -ExecutionPolicy Bypass -File $tmpFile
       - name: Maintain Connection & Show Info
         shell: pwsh
         run: |

@@ -27,8 +27,25 @@ jobs:
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
           
+          # إنشاء profile للمستخدم
+          $credential = New-Object System.Management.Automation.PSCredential($username, $securePass)
+          Start-Process powershell -Credential $credential -ArgumentList "-Command exit" -LoadUserProfile -WindowStyle Hidden -Wait -ErrorAction SilentlyContinue
+          Write-Host "Profile pre-created for standarduser."
+          
+          # Mount HKU
+          if (-not (Test-Path "HKU:")) {
+              New-PSDrive -Name HKU -PSProvider Registry -Root HKEY_USERS | Out-Null
+          }
+          
+          # Load user hive
+          $userSID = (New-Object System.Security.Principal.NTAccount($username)).Translate([System.Security.Principal.SecurityIdentifier]).Value
+          if (-not (Test-Path "HKU:\$userSID")) {
+              reg load "HKU\$userSID" "C:\Users\$username\NTUSER.DAT"
+          }
+          
           echo "USERNAME=$username" >> $env:GITHUB_ENV
           echo "PASSWORD=$password" >> $env:GITHUB_ENV
+          echo "USER_SID=$userSID" >> $env:GITHUB_ENV
           Write-Host "Admin user account created with RDP enabled successfully."
 
       - name: Install & Connect Tailscale
@@ -61,26 +78,23 @@ jobs:
           $code | Out-File -FilePath $tmpFile -Encoding UTF8 -Force
           
           $username = "standarduser"
-          $password = "${{ secrets.PASSWORD }}"
+          $userSID = "$env:USER_SID"
           
-          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-          $credential = New-Object System.Management.Automation.PSCredential($username, $securePass)
-          Start-Process powershell -Credential $credential -ArgumentList "-Command exit" -LoadUserProfile -WindowStyle Hidden -Wait -ErrorAction SilentlyContinue
+          # Mount HKU إذا لم يكن موجوداً
+          if (-not (Test-Path "HKU:")) {
+              New-PSDrive -Name HKU -PSProvider Registry -Root HKEY_USERS | Out-Null
+          }
           
-          schtasks /Create /TN "InitScript" /TR "PowerShell.exe -ExecutionPolicy Bypass -File `"$tmpFile`"" /SC ONCE /ST 00:00 /RU "$username" /RP "$password" /F | Out-Null
-          schtasks /Run /TN "InitScript" | Out-Null
+          $regPath = "HKU:\$userSID\Software\Microsoft\Windows\CurrentVersion\Run"
+          if (-not (Test-Path $regPath)) {
+              New-Item -Path $regPath -Force | Out-Null
+          }
           
-          Write-Host "Waiting for script to complete under standarduser..."
-          Start-Sleep -Seconds 5
-          do {
-              Start-Sleep -Seconds 3
-              $state = schtasks /Query /TN "InitScript" /FO LIST 2>$null | Select-String "Status" | ForEach-Object { $_ -replace ".*:\s*", "" }
-          } while ($state -match "Running")
+          # تسجيل الـ script ليتنفذ عند أول login تحت standarduser
+          Set-ItemProperty -Path $regPath -Name "InitScript" -Value "PowerShell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$tmpFile`"" -Force
+          Write-Host "Script registered to run on standarduser login."
           
-          Write-Host "Script execution completed under standarduser"
-          schtasks /Delete /TN "InitScript" /F | Out-Null
-          
-          # تحويل المستخدم إلى Standard بعد انتهاء الـ script
+          # تحويل المستخدم إلى Standard
           Remove-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
           Write-Host "User downgraded to Standard successfully."
 

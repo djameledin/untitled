@@ -28,7 +28,7 @@ public class Win32 {
 "@
 
 # Settings
-$WallpaperUrl = "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/default.png"
+$WallpaperUrl = "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/default.jpg"
 $WallpaperPath = "C:\Users\Public\Pictures\wallpaper.jpg"
 $DarkMode = $false
 $SW_HIDE = 0

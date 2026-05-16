@@ -60,9 +60,16 @@ jobs:
 
           Register-ScheduledTask -TaskName "FirstLogonInit" -Action $action -Trigger $trigger -Principal $principal -Force
 
-      - name: Final Info
+      - name: Maintain Connection & Keep Alive
         shell: pwsh
         run: |
-          Write-Host "VM ready"
+          Write-Host "VM is ready and running"
           Write-Host "User: $env:USER"
           Write-Host "IP: $env:TAILSCALE_IP"
+
+          $end=(Get-Date).AddHours(5).AddMinutes(30)
+
+          while((Get-Date)-lt$end){
+              Start-Sleep 600
+              Write-Host "Keep Alive: $(Get-Date -Format 'HH:mm:ss')"
+          }

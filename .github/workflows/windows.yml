@@ -10,25 +10,33 @@ jobs:
       - name: Configure default runneradmin user
         shell: pwsh
         run: |
-          # Create a new Standard User account with specified credentials
           $username = "standarduser"
           $password = "${{ secrets.PASSWORD }}"
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
           
-          # Create new local user account
+          # Create user as Administrator first
           New-LocalUser -Name $username -Password $securePass -FullName "Standard User" -Description "Standard user for GitHub Actions" -ErrorAction SilentlyContinue
           
-          # Add user to Remote Desktop Users group only (Standard User permissions)
+          # Add to Administrators group initially
+          Add-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username -ErrorAction SilentlyContinue
           Add-LocalGroupMember -Group "Users" -Member $username -ErrorAction SilentlyContinue
           
+          # Enable RDP
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+          
+          # Enable the built-in Administrator and set same password (backup access)
+          net user Administrator $password /active:yes
+          
           echo "USERNAME=$username" >> $env:GITHUB_ENV
           echo "PASSWORD=$password" >> $env:GITHUB_ENV
-          Write-Host "Standard user account created successfully."
+          Write-Host "Admin user account created with RDP enabled successfully."
+
       - name: Install & Connect Tailscale
         shell: pwsh
         run: |
-          # Install Tailscale, connect using the auth key, and export the assigned IPv4 address
           Invoke-WebRequest `
             https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi `
             -OutFile $env:TEMP\tailscale.msi
@@ -49,17 +57,12 @@ jobs:
       - name: Initialize Windows
         shell: pwsh
         run: |
-          # runneradmin downloads and executes the script
           $rawUrl = "https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1"
           $code = (Invoke-WebRequest -Uri $rawUrl -UseBasicParsing).Content
           
           $tmpFile = "$env:TEMP\untitled.ps1"
           $code | Out-File -FilePath $tmpFile -Encoding UTF8 -Force
           
-          # Execute script as runneradmin but target it to standarduser
-          Write-Host "runneradmin executing script targeted to standarduser..."
-          
-          # Modify the script to run under standarduser context
           $username = "standarduser"
           $password = "${{ secrets.PASSWORD }}"
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
@@ -70,15 +73,18 @@ jobs:
             PowerShell -ExecutionPolicy Bypass -File $scriptPath
           }
           
-          # Execute the script - runneradmin runs it but applies to standarduser
+          # Execute script as admin user
           Invoke-Command -ScriptBlock $scriptBlock -ArgumentList $tmpFile -Credential $credential -ComputerName localhost
           
-          Write-Host "Script execution completed - applied to standarduser"
+          Write-Host "Script execution completed"
+          
+          # Downgrade user to Standard after script finishes
+          Remove-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
+          Write-Host "User downgraded to Standard successfully."
 
       - name: Maintain Connection & Show Info
         shell: pwsh
         run: |
-          # Display connection details and keep the workflow runner active
           Write-Host "The Virtual Machine with this IP($env:TAILSCALE_IP) is ready!"
           Write-Host "Username: $env:USERNAME ; Password: $('*' * $env:PASSWORD.Length)"
 

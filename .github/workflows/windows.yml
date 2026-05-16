@@ -9,47 +9,60 @@ jobs:
     timeout-minutes: 340
 
     steps:
-      - name: Set user variables
+      - name: Set variables
         shell: pwsh
         run: |
-          echo "OLD_USER=runneradmin" >> $env:GITHUB_ENV
-          echo "NEW_USER=standarduser" >> $env:GITHUB_ENV
-          echo "PASSWORD=${{ secrets.PASSWORD }}" >> $env:GITHUB_ENV
+          echo "USER=standarduser" >> $env:GITHUB_ENV
+          echo "PASS=${{ secrets.PASSWORD }}" >> $env:GITHUB_ENV
 
       - name: Install & Connect Tailscale
         shell: pwsh
         run: |
           Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-1.92.3-amd64.msi -OutFile $env:TEMP\t.msi
           Start-Process msiexec.exe -ArgumentList "/i $env:TEMP\t.msi /quiet /norestart" -Wait
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname=vm
+
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
+            --reset `
+            --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" `
+            --hostname=vm
 
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
 
-      - name: Initialize Windows
+      - name: Create Standard User
         shell: pwsh
         run: |
-          $rawUrl="https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1"
-          $tmp="$env:TEMP\init.ps1"
-          Invoke-WebRequest $rawUrl -OutFile $tmp
-          pwsh -ExecutionPolicy Bypass -File $tmp
+          $sec = ConvertTo-SecureString $env:PASS -AsPlainText -Force
+          New-LocalUser $env:USER -Password $sec -FullName "Standard User"
+          Add-LocalGroupMember -Group "Users" -Member $env:USER
 
-          $sec=ConvertTo-SecureString $env:PASSWORD -AsPlainText -Force
-          Set-LocalUser -Name $env:OLD_USER -Password $sec
-          Remove-LocalGroupMember -Group "Administrators" -Member $env:OLD_USER -ErrorAction SilentlyContinue
-          Rename-LocalUser -Name $env:OLD_USER -NewName $env:NEW_USER
-          Add-LocalGroupMember -Group "Users" -Member $env:NEW_USER -ErrorAction SilentlyContinue
+      - name: Enable Auto Login
+        shell: pwsh
+        run: |
+          $key="HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
 
-      - name: Maintain Connection & Show Info
+          Set-ItemProperty $key AutoAdminLogon "1"
+          Set-ItemProperty $key DefaultUserName $env:USER
+          Set-ItemProperty $key DefaultPassword $env:PASS
+          Set-ItemProperty $key DefaultDomainName "."
+
+      - name: Create Elevated First Logon Task
+        shell: pwsh
+        run: |
+          $scriptPath="C:\init.ps1"
+          $url="https://raw.githubusercontent.com/djameledin/untitled/main/untitled.ps1"
+
+          Invoke-WebRequest $url -OutFile $scriptPath
+
+          $action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-ExecutionPolicy Bypass -File $scriptPath"
+          $trigger = New-ScheduledTaskTrigger -AtLogOn
+          $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+
+          Register-ScheduledTask -TaskName "FirstLogonInit" -Action $action -Trigger $trigger -Principal $principal -Force
+
+      - name: Final Info
         shell: pwsh
         run: |
           Write-Host "VM ready"
-          Write-Host "User: $env:NEW_USER"
+          Write-Host "User: $env:USER"
           Write-Host "IP: $env:TAILSCALE_IP"
-
-          $end=(Get-Date).AddHours(5).AddMinutes(30)
-
-          while((Get-Date)-lt$end){
-              Start-Sleep 600
-              Write-Host (Get-Date)
-          }

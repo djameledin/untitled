@@ -16,8 +16,11 @@ jobs:
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
           
           Set-LocalUser -Name $username -Password $securePass
-          Add-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
+          # Remove from Administrators group to ensure Standard User permissions
+          Remove-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
+          # Add only to Remote Desktop Users group (Standard User permissions)
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Users" -Member $username -ErrorAction SilentlyContinue
           echo "USERNAME=$username" >> $env:GITHUB_ENV
           echo "PASSWORD=$password" >> $env:GITHUB_ENV
           Write-Host "User account provisioning completed successfully."

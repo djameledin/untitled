@@ -21,10 +21,63 @@ Write-Output "Log out or restart to apply changes."
 
 
 
+$Targets = @(
+    "D:\DATALOSS_WARNING_README.txt",
+    "D:\CollectGuestLogsTemp"
+)
 
-# اجعل المجلد مخفي ومحمٍ من القراءة العادية
-attrib +h +s "D:\a"
+foreach ($Item in $Targets) {
+    if (Test-Path $Item) {
+        Remove-Item $Item -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# إخفاء مجلد D:\a وجعله System
+if (Test-Path "D:\a") {
+    attrib +h +s "D:\a"
+}
 
 
 
-تغيير مسار اختصارات من C الى D
+
+
+
+
+# تعريف المجلدات
+$Folders = @{
+    "Desktop"   = "D:\Desktop"
+    "Personal"  = "D:\Documents"
+    "{374DE290-123F-4565-9164-39C4925E467B}" = "D:\Downloads"
+    "My Pictures" = "D:\Pictures"
+    "My Video" = "D:\Videos"
+    "My Music" = "D:\Music"
+}
+
+# إنشاء المجلدات وتحديث الريجستري
+foreach ($Key in $Folders.Keys) {
+
+    $Path = $Folders[$Key]
+
+    New-Item -ItemType Directory -Path $Path -Force | Out-Null
+
+    Set-ItemProperty `
+    -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" `
+    -Name $Key `
+    -Value $Path
+
+    Set-ItemProperty `
+    -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders" `
+    -Name $Key `
+    -Value $Path
+}
+
+# نقل الملفات الحالية
+Move-Item "$HOME\Desktop\*" "D:\Desktop" -Force -ErrorAction SilentlyContinue
+Move-Item "$HOME\Documents\*" "D:\Documents" -Force -ErrorAction SilentlyContinue
+Move-Item "$HOME\Downloads\*" "D:\Downloads" -Force -ErrorAction SilentlyContinue
+Move-Item "$HOME\Pictures\*" "D:\Pictures" -Force -ErrorAction SilentlyContinue
+Move-Item "$HOME\Videos\*" "D:\Videos" -Force -ErrorAction SilentlyContinue
+Move-Item "$HOME\Music\*" "D:\Music" -Force -ErrorAction SilentlyContinue
+
+# إعادة تشغيل Explorer
+Stop-Process -Name explorer -Force

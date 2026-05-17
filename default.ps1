@@ -18,26 +18,10 @@ $WallpaperUrl, $WallpaperPath, $SW_HIDE = "https://raw.githubusercontent.com/dja
 $Targets, $processesToHide = @("D:\DATALOSS_WARNING_README.txt", "D:\CollectGuestLogsTemp"), @("hosted-compute-agent", "tailscale-ipn")
 $regPath, $sysPath, $p = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 $startMenus = @("$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs")
-$RegistryPathCMD, $RegistryPathPS = "HKCU:\Software\Policies\Microsoft\Windows\System", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"
-$path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\System"
-
-if (-not (Test-Path $RegistryPathCMD)) {
-    New-Item -Path $RegistryPathCMD -Force | Out-Null
-}
-New-ItemProperty -Path $RegistryPathCMD -Name "DisableCMD" -Value 1 -PropertyType DWord -Force | Out-Null
-if (-not (Test-Path $RegistryPathPS)) {
-    New-Item -Path $RegistryPathPS -Force | Out-Null
-}
-New-ItemProperty -Path $RegistryPathPS -Name "DisallowRun" -Value 1 -PropertyType DWord -Force | Out-Null
 
 New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Force | Out-Null
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" `
 -Name NoRun -Value 1
-
-if (-not (Test-Path $path)) {
-    New-Item -Path $path -Force | Out-Null
-}
-Set-ItemProperty -Path $path -Name "DisableRegistryTools" -Value 1 -Type DWord
 
 if (-not (Test-Path $WallpaperPath)) { Invoke-WebRequest -Uri $WallpaperUrl -OutFile $WallpaperPath -UseBasicParsing -ErrorAction SilentlyContinue }
 if (Test-Path $WallpaperPath) { [NativeWallpaper]::SetWallpaper($WallpaperPath) | Out-Null }

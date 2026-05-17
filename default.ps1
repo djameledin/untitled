@@ -18,6 +18,7 @@ $WallpaperUrl, $WallpaperPath, $SW_HIDE = "https://raw.githubusercontent.com/dja
 $Targets, $processesToHide = @("D:\DATALOSS_WARNING_README.txt", "D:\CollectGuestLogsTemp"), @("hosted-compute-agent", "tailscale-ipn")
 $regPath, $sysPath, $p = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 $startMenus = @("$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs")
+$Exceptions = @("Microsoft Edge.lnk", "Tailscale.lnk", "Windows PowerShell", "Azure Arc Setup.lnk")
 
 if (-not (Test-Path $WallpaperPath)) { Invoke-WebRequest -Uri $WallpaperUrl -OutFile $WallpaperPath -UseBasicParsing -ErrorAction SilentlyContinue }
 if (Test-Path $WallpaperPath) { [NativeWallpaper]::SetWallpaper($WallpaperPath) | Out-Null }
@@ -35,7 +36,20 @@ foreach ($Key in $Folders.Keys) {
 
 Remove-Item "$env:Public\Desktop\*.lnk" -Force -ErrorAction SilentlyContinue
 Remove-Item "$env:USERPROFILE\Desktop\*.lnk" -Force -ErrorAction SilentlyContinue
-foreach ($path in $startMenus) { Get-ChildItem $path -Recurse -Filter "*.lnk" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }
+
+foreach ($path in $startMenus) { 
+    Get-ChildItem $path -Recurse -Filter "*.lnk" -ErrorAction SilentlyContinue | ForEach-Object {
+        $item = $_
+        $shouldDelete = $true
+        foreach ($exception in $Exceptions) {
+            if ($item.FullName -like "*\$exception*") {
+                $shouldDelete = $false
+                break
+            }
+        }
+        if ($shouldDelete) { Remove-Item $item.FullName -Force -ErrorAction SilentlyContinue }
+    }
+}
 
 $SourceTargetMap = @{
     "$HOME\Desktop"   = "D:\Desktop"

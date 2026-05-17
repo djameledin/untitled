@@ -19,7 +19,7 @@ $Targets = @("D:\DATALOSS_WARNING_README.txt", "D:\CollectGuestLogsTemp")
 $processesToHide = @("hosted-compute-agent", "tailscale-ipn")
 $regPath, $sysPath, $p = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 $startMenus = @("$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs")
-$Exceptions = @("Microsoft Edge.lnk", "Tailscale.lnk", "Windows PowerShell", "Azure Arc Setup.lnk")
+$Exceptions = @("Microsoft Edge.lnk")
 
 $Folders = @{ "Desktop"="D:\Desktop"; "Personal"="D:\Documents"; "{374DE290-123F-4565-9164-39C4925E467B}"="D:\Downloads"; "My Pictures"="D:\Pictures"; "My Video"="D:\Videos"; "My Music"="D:\Music" }
 

@@ -67,8 +67,6 @@ if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
 if (-not (Test-Path $sysPath)) { New-Item -Path $sysPath -Force | Out-Null }
 Set-ItemProperty -Path $regPath -Name "NoDrives" -Value 4 -Type DWord -Force
 Set-ItemProperty -Path $regPath -Name "NoViewOnDrive" -Value 4 -Type DWord -Force
-Set-ItemProperty -Path $sysPath -Name "DisableCMD" -Value 1 -Type DWord -Force
-Set-ItemProperty -Path $sysPath -Name "DisableRegistryTools" -Value 1 -Type DWord -Force
 
 Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
 Start-Sleep 3

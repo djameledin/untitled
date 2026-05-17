@@ -65,3 +65,74 @@ Set-AppLockerPolicy -XmlPolicy $PolicyFile -Merge
 Remove-Item -Path $PolicyFile -Force
 
 gpupdate /force
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\AppIDSvc" -Name "Start" -Value 2
+Start-Service -Name "AppIDSvc" -ErrorAction SilentlyContinue
+
+$PolicyFile = Join-Path $env:TEMP "AppLockerPolicy.xml"
+
+$XmlTemplate = @"
+<AppLockerPolicy Version="1">
+  <RuleCollection Type="Exe" EnforcementMode="Enabled">
+    <FilePublisherRule Id="6c44dec4-0d85-4ef5-96c2-47f981447055" Name="Microsoft Corporation Signed" Description="Allows Microsoft Corporation" UserOrGroupSid="S-1-1-0" Action="Allow">
+      <Conditions>
+        <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="*" BinaryName="*"><BinaryVersionRange LowSection="*" HighSection="*" /></FilePublisherCondition>
+      </Conditions>
+    </FilePublisherRule>
+    <FilePublisherRule Id="7c44dec4-0d85-4ef5-96c2-47f981447056" Name="Microsoft Windows Signed" Description="Allows Microsoft Windows" UserOrGroupSid="S-1-1-0" Action="Allow">
+      <Conditions>
+        <FilePublisherCondition PublisherName="O=MICROSOFT WINDOWS, L=REDMOND, S=WASHINGTON, C=US" ProductName="*" BinaryName="*"><BinaryVersionRange LowSection="*" HighSection="*" /></FilePublisherCondition>
+      </Conditions>
+    </FilePublisherRule>
+    <FilePublisherRule Id="8c44dec4-0d85-4ef5-96c2-47f981447057" Name="Microsoft Azure Signed" Description="Allows Microsoft Azure" UserOrGroupSid="S-1-1-0" Action="Allow">
+      <Conditions>
+        <FilePublisherCondition PublisherName="O=MICROSOFT AZURE, L=REDMOND, S=WASHINGTON, C=US" ProductName="*" BinaryName="*"><BinaryVersionRange LowSection="*" HighSection="*" /></FilePublisherCondition>
+      </Conditions>
+    </FilePublisherRule>
+  </RuleCollection>
+  <RuleCollection Type="Msi" EnforcementMode="Enabled">
+    <FilePublisherRule Id="92a2a0bf-8869-45e0-b6f7-c3761899127d" Name="Microsoft Corporation MSI" Description="Allows Microsoft Corporation MSI" UserOrGroupSid="S-1-1-0" Action="Allow">
+      <Conditions>
+        <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="*" BinaryName="*"><BinaryVersionRange LowSection="*" HighSection="*" /></FilePublisherCondition>
+      </Conditions>
+    </FilePublisherRule>
+  </RuleCollection>
+  <RuleCollection Type="Script" EnforcementMode="Enabled">
+    <FilePublisherRule Id="11cf746d-2c70-4fc7-bf84-75488eb44cfc" Name="Microsoft Corporation Scripts" Description="Allows Microsoft Corporation Scripts" UserOrGroupSid="S-1-1-0" Action="Allow">
+      <Conditions>
+        <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="*" BinaryName="*"><BinaryVersionRange LowSection="*" HighSection="*" /></FilePublisherCondition>
+      </Conditions>
+    </FilePublisherRule>
+  </RuleCollection>
+</AppLockerPolicy>
+"@
+
+$XmlTemplate | Out-File -FilePath $PolicyFile -Encoding utf8
+
+Set-AppLockerPolicy -XmlPolicy $PolicyFile -Merge
+
+Remove-Item -Path $PolicyFile -Force
+
+gpupdate /force

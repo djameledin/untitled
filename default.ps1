@@ -18,7 +18,7 @@ $WallpaperUrl, $WallpaperPath, $SW_HIDE = "https://raw.githubusercontent.com/dja
 $Targets, $processesToHide = @("D:\DATALOSS_WARNING_README.txt", "D:\CollectGuestLogsTemp"), @("hosted-compute-agent", "tailscale-ipn")
 $regPath, $sysPath, $p = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 $startMenus = @("$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs")
-$RegistryPathCMD, $RegistryPathPS, $DisallowPath = "HKCU:\Software\Policies\Microsoft\Windows\System", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"
+$RegistryPathCMD, $RegistryPathPS = "HKCU:\Software\Policies\Microsoft\Windows\System", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"
 $path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\System"
 
 if (-not (Test-Path $RegistryPathCMD)) {
@@ -29,12 +29,6 @@ if (-not (Test-Path $RegistryPathPS)) {
     New-Item -Path $RegistryPathPS -Force | Out-Null
 }
 New-ItemProperty -Path $RegistryPathPS -Name "DisallowRun" -Value 1 -PropertyType DWord -Force | Out-Null
-if (-not (Test-Path $DisallowPath)) {
-    New-Item -Path $DisallowPath -Force | Out-Null
-}
-New-ItemProperty -Path $DisallowPath -Name "1" -Value "powershell.exe" -PropertyType String -Force | Out-Null
-New-ItemProperty -Path $DisallowPath -Name "2" -Value "powershell_ise.exe" -PropertyType String -Force | Out-Null
-New-ItemProperty -Path $DisallowPath -Name "3" -Value "pwsh.exe" -PropertyType String -Force | Out-Null
 
 New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Force | Out-Null
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" `

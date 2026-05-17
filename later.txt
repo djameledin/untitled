@@ -1,64 +1,16 @@
-# 1. التحقق من صلاحيات المسؤول
-Set-ExecutionPolicy Bypass -Scope Process -Force
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]"Administrator")) { 
-    Write-Error "CRITICAL: Please run as Administrator!"
-    Exit 
+$Ubuntu, $PowerToys, $DesktopLiveWallpaper, $ScreenRecorder, $Skype, $Python = "https://apps.microsoft.com/detail/9wzdncrfhvn5?hl=en-US&gl=US", "https://apps.microsoft.com/detail/9msmlrh6lzf3?hl=en-US&gl=US", "https://apps.microsoft.com/detail/9nblggh4qghw?hl=en-US&gl=US", "https://apps.microsoft.com/detail/9mz95kl8mr0l?hl=en-US&gl=US", "https://apps.microsoft.com/detail/9wzdncrfj3pr?hl=en-US&gl=US", "https://apps.microsoft.com/detail/9pcfs5b6t72h?hl=en-US&gl=US"
+$AppUrls = @($Ubuntu, $PowerToys, $DesktopLiveWallpaper, $ScreenRecorder, $Skype, $Python)
+$Jobs = @()
+
+foreach ($url in $AppUrls) {
+    if ($url -match "detail/([a-zA-Z0-9]{12})") {
+        $appId = $Matches[1].ToUpper()
+        $Jobs += Start-Job -ScriptBlock {
+            param($id)
+            winget install --id "$id" --source msstore --accept-source-agreements --accept-package-agreements --silent
+        } -ArgumentList $appId
+    }
 }
 
-# 2. إنشاء مجلدات القرص D وإعادة توجيه المسارات (Desktop, Documents, etc.)
-$TargetDrive = "D:"
-$Folders = @{ 
-    "Desktop"     = "$TargetDrive\Desktop"
-    "Personal"    = "$TargetDrive\Documents"
-    "{374DE290-123F-4565-9164-39C4925E467B}" = "$TargetDrive\Downloads"
-    "My Pictures" = "$TargetDrive\Pictures"
-}
-
-foreach ($Key in $Folders.Keys) {
-    $Path = $Folders[$Key]
-    if (-not (Test-Path $Path)) { New-Item -ItemType Directory -Path $Path -Force | Out-Null }
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" -Name $Key -Value $Path -Force
-}
-
-# 3. نقل الملفات الحالية من سطح المكتب القديم إلى القرص D ليبقى نظيفاً
-if (Test-Path "$HOME\Desktop\*") {
-    Move-Item "$HOME\Desktop\*" "$TargetDrive\Desktop" -Force -ErrorAction SilentlyContinue
-}
-
-# 4. تفعيل ميزة "إخفاء كافة أيقونات سطح المكتب" عبر الريجستري (طريقة نظامية ونظيفة)
-# هذه القيمة تقوم بإخفاء (الملفات، المجلدات، وسلة المهملات) من سطح المكتب كلياً دون حذفها
-$HideIconsPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
-Set-ItemProperty -Path $HideIconsPath -Name "HideIcons" -Value 1 -Type DWord -Force
-
-# 5. تنظيف اختصارات سطح المكتب العام (Public Desktop) التي تظهر لجميع المستخدمين
-# (مثل اختصارات البرامج المثبتة حديثاً كـ Google Chrome أو Zoom)
-$PublicDesktop = "$env:Public\Desktop"
-if (Test-Path $PublicDesktop) {
-    Get-ChildItem $PublicDesktop -Filter "*.lnk" | Remove-Item -Force -ErrorAction SilentlyContinue
-}
-
-# 6. تطبيق القيود الأمنية (إخفاء القرص C وتعطيل أداة Run) للمستخدم الحالي
-$UserPolicyPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"
-if (-not (Test-Path $UserPolicyPath)) { New-Item -Path $UserPolicyPath -Force | Out-Null }
-Set-ItemProperty -Path $UserPolicyPath -Name "NoRun" -Value 1 -Type DWord -Force
-Set-ItemProperty -Path $UserPolicyPath -Name "NoDrives" -Value 4 -Type DWord -Force
-Set-ItemProperty -Path $UserPolicyPath -Name "NoViewOnDrive" -Value 4 -Type DWord -Force
-
-# 7. ضبط مظهر النظام والخلفية الرسمية للشركة
-$ThemePath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-if (-not (Test-Path $ThemePath)) { New-Item -Path $ThemePath -Force | Out-Null }
-Set-ItemProperty $ThemePath "AppsUseLightTheme" 1 -Force
-Set-ItemProperty $ThemePath "SystemUsesLightTheme" 1 -Force
-
-$WallpaperPath = "C:\Users\Public\Pictures\company_wallpaper.jpg"
-$WallpaperUrl  = "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/default.jpg"
-
-if (-not (Test-Path $WallpaperPath)) { 
-    Invoke-WebRequest -Uri $WallpaperUrl -OutFile $WallpaperPath -UseBasicParsing -ErrorAction SilentlyContinue 
-}
-if (Test-Path $WallpaperPath) {
-    Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "Wallpaper" -Value $WallpaperPath
-}
-
-# 8. تحديث واجهة المستخدم فوراً لتطبيق التغييرات (ستظهر الواجهة نظيفة ومحدثة خلال ثانية)
-Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+$Jobs | Wait-Job | Out-Null
+$Jobs | Remove-Job

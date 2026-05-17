@@ -18,66 +18,50 @@ $Jobs | Remove-Job
 
 
 
-# مسار سياسات المستكشف والنظام
-$sysPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System"
-$regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"
-
-# منع نافذة Run
-Set-ItemProperty -Path $regPath -Name "NoRun" -Value 1 -Type DWord -Force
-
-# منع موجه الأوامر CMD
-Set-ItemProperty -Path $sysPath -Name "DisableCMD" -Value 1 -Type DWord -Force
-
-# منع مدير المهام Task Manager (لكي لا يغلق الموظف برامج الشركة)
-Set-ItemProperty -Path $sysPath -Name "DisableTaskMgr" -Value 1 -Type DWord -Force
 
 
 
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\AppIDSvc" -Name "Start" -Value 2
+Start-Service -Name "AppIDSvc" -ErrorAction SilentlyContinue
 
+$PolicyFile = Join-Path $env:TEMP "AppLockerPolicy.xml"
 
+$XmlTemplate = @"
+<AppLockerPolicy Version="1">
+  <RuleCollection Type="Exe" EnforcementMode="Enabled">
+    <FilePublisherRule Id="6c44dec4-0d85-4ef5-96c2-47f981447055" Name="Microsoft Signed Files" Description="Allows Microsoft signed files" UserOrGroupSid="S-1-1-0" Action="Allow">
+      <Conditions>
+        <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="*" BinaryName="*">
+          <BinaryVersionRange LowSection="*" HighSection="*" />
+        </FilePublisherCondition>
+      </Conditions>
+    </FilePublisherRule>
+  </RuleCollection>
+  <RuleCollection Type="Msi" EnforcementMode="Enabled">
+    <FilePublisherRule Id="92a2a0bf-8869-45e0-b6f7-c3761899127d" Name="Microsoft Signed MSI" Description="Allows Microsoft signed MSI" UserOrGroupSid="S-1-1-0" Action="Allow">
+      <Conditions>
+        <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="*" BinaryName="*">
+          <BinaryVersionRange LowSection="*" HighSection="*" />
+        </FilePublisherCondition>
+      </Conditions>
+    </FilePublisherRule>
+  </RuleCollection>
+  <RuleCollection Type="Script" EnforcementMode="Enabled">
+    <FilePublisherRule Id="11cf746d-2c70-4fc7-bf84-75488eb44cfc" Name="Microsoft Signed Scripts" Description="Allows Microsoft signed scripts" UserOrGroupSid="S-1-1-0" Action="Allow">
+      <Conditions>
+        <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="*" BinaryName="*">
+          <BinaryVersionRange LowSection="*" HighSection="*" />
+        </FilePublisherCondition>
+      </Conditions>
+    </FilePublisherRule>
+  </RuleCollection>
+</AppLockerPolicy>
+"@
 
+$XmlTemplate | Out-File -FilePath $PolicyFile -Encoding utf8
 
-# 1. التحقق من صلاحيات المسؤول
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]"Administrator")) {
-    Write-Error "خطأ حرج: يجب تشغيل PowerShell كمسؤول!"
-    exit
-}
+Set-AppLockerPolicy -XmlPolicy $PolicyFile -Merge
 
-Write-Host "جاري تفعيل نظام الحظر الشامل عبر الحماية الصارمة لنظام التشغيل..." -ForegroundColor Cyan
+Remove-Item -Path $PolicyFile -Force
 
-# 2. تفعيل السياسة العامة لمنع تشغيل أي برنامج افتراضياً (Default Level = Disallowed)
-$saPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Safer\CodeIdentifiers"
-if (-not (Test-Path $saPath)) { New-Item -Path $saPath -Force | Out-Null }
-
-# تعيين القيمة 0 تعني حظر كل شيء بشكل افتراضي عدا المستثنى
-Set-ItemProperty -Path $saPath -Name "DefaultLevel" -Value 0 -Type DWord -Force
-Set-ItemProperty -Path $saPath -Name "AuthenticodeEnabled" -Value 0 -Type DWord -Force
-
-# 3. إنشاء مسارات الاستثناء (الاصلاحية البيضاء)
-# السماح بمجلد الويندوز بالكامل (ليعمل Explorer، وقائمة ابدأ، والإعدادات Settings)
-$winRule = "$saPath\0\Paths\{22222222-4444-4444-4444-666666666666}"
-if (-not (Test-Path $winRule)) { New-Item -Path $winRule -Force | Out-Null }
-Set-ItemProperty -Path $winRule -Name "ItemData" -Value "%HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRoot%" -Force
-Set-ItemProperty -Path $winRule -Name "SaferFlags" -Value 0 -Type DWord -Force
-
-# 4. استثناء متصفح Microsoft Edge صراحة بالسماح له بالعمل
-# سنقوم باستثناء مسار المجلد الخاص به ليعمل هو وتحديثاته بشكل روتيني
-$edgeRule1 = "$saPath\0\Paths\{11111111-3333-3333-3333-555555555555}"
-if (-not (Test-Path $edgeRule1)) { New-Item -Path $edgeRule1 -Force | Out-Null }
-Set-ItemProperty -Path $edgeRule1 -Name "ItemData" -Value "C:\Program Files\Microsoft\Edge\Application\msedge.exe" -Force
-Set-ItemProperty -Path $edgeRule1 -Name "SaferFlags" -Value 0 -Type DWord -Force
-
-$edgeRule2 = "$saPath\0\Paths\{11111111-3333-3333-3333-555555555556}"
-if (-not (Test-Path $edgeRule2)) { New-Item -Path $edgeRule2 -Force | Out-Null }
-Set-ItemProperty -Path $edgeRule2 -Name "ItemData" -Value "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" -Force
-Set-ItemProperty -Path $edgeRule2 -Name "SaferFlags" -Value 0 -Type DWord -Force
-
-
-# 5. تنظيف أي كاش قديم للسياسات وإجبار الويندوز على التحديث
-gpupdate /force | Out-Null
-Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
-
-Write-Host "`n==================================================" -ForegroundColor Green
-Write-Host " تم تفعيل الحظر الصارم وإدراج قائمة الاستثناءات!" -ForegroundColor Green
-Write-Host " جرب الآن تشغيل أي برنامج مثبت أو متصفح آخر (مثل Chrome)." -ForegroundColor Yellow
-Write-Host "==================================================" -ForegroundColor Green
+gpupdate /force

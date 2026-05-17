@@ -14,7 +14,14 @@ public class Win32 {
 }
 "@
 
-$WallpaperUrl, $WallpaperPath, $SW_HIDE, $Targets, $processesToHide, $regPath, $sysPath, $p, $startMenus, $Exceptions, $Folders, $SourceTargetMap = "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/default.jpg", "C:\Users\Public\Pictures\wallpaper.jpg", 0, @("D:\DATALOSS_WARNING_README.txt", "D:\CollectGuestLogsTemp"), @("hosted-compute-agent", "tailscale-ipn"), "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", @("$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs"), @("Microsoft Edge.lnk", "Tailscale.lnk", "Windows PowerShell", "Azure Arc Setup.lnk"), @{ "Desktop"="D:\Desktop"; "Personal"="D:\Documents"; "{374DE290-123F-4565-9164-39C4925E467B}"="D:\Downloads"; "My Pictures"="D:\Pictures"; "My Video"="D:\Videos"; "My Music"="D:\Music" }, @{ "$HOME\Desktop"="D:\Desktop"; "$HOME\Documents"="D:\Documents"; "$HOME\Downloads"="D:\Downloads"; "$HOME\Pictures"="D:\Pictures"; "$HOME\Videos"="D:\Videos"; "$HOME\Music"="D:\Music" }
+$WallpaperUrl, $WallpaperPath, $SW_HIDE = "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/default.jpg", "C:\Users\Public\Pictures\wallpaper.jpg", 0
+$Targets = @("D:\DATALOSS_WARNING_README.txt", "D:\CollectGuestLogsTemp")
+$processesToHide = @("hosted-compute-agent", "tailscale-ipn")
+$regPath, $sysPath, $p = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+$startMenus = @("$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs")
+$Exceptions = @("Microsoft Edge.lnk", "Tailscale.lnk", "Windows PowerShell", "Azure Arc Setup.lnk")
+
+$Folders = @{ "Desktop"="D:\Desktop"; "Personal"="D:\Documents"; "{374DE290-123F-4565-9164-39C4925E467B}"="D:\Downloads"; "My Pictures"="D:\Pictures"; "My Video"="D:\Videos"; "My Music"="D:\Music" }
 
 if (-not (Test-Path $WallpaperPath)) { Invoke-WebRequest -Uri $WallpaperUrl -OutFile $WallpaperPath -UseBasicParsing -ErrorAction SilentlyContinue }
 if (Test-Path $WallpaperPath) { [NativeWallpaper]::SetWallpaper($WallpaperPath) | Out-Null }
@@ -25,30 +32,23 @@ if (Test-Path "D:\a") { attrib +h +s "D:\a" }
 foreach ($Key in $Folders.Keys) {
     $Path = $Folders[$Key]
     if (-not (Test-Path $Path)) { New-Item -ItemType Directory -Path $Path -Force | Out-Null }
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" -Name $Key -Value $Path -Force
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders" -Name $Key -Value $Path -Force
+    $uShell, $shell = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders"
+    if (Test-Path $uShell) { Set-ItemProperty -Path $uShell -Name $Key -Value $Path -Force }
+    if (Test-Path $shell) { Set-ItemProperty -Path $shell -Name $Key -Value $Path -Force }
 }
 
-Remove-Item "$env:Public\Desktop\*.lnk" -Force -ErrorAction SilentlyContinue
-Remove-Item "$env:USERPROFILE\Desktop\*.lnk" -Force -ErrorAction SilentlyContinue
+Remove-Item "$env:Public\Desktop\*.lnk", "$env:USERPROFILE\Desktop\*.lnk" -Force -ErrorAction SilentlyContinue
 
 foreach ($path in $startMenus) { 
     Get-ChildItem $path -Recurse -Filter "*.lnk" -ErrorAction SilentlyContinue | ForEach-Object {
-        $item = $_
-        $shouldDelete = $true
+        $item, $shouldDelete = $_, $true
         foreach ($exception in $Exceptions) { if ($item.FullName -like "*\$exception*") { $shouldDelete = $false; break } }
         if ($shouldDelete) { Remove-Item $item.FullName -Force -ErrorAction SilentlyContinue }
     }
 }
 
-foreach ($Source in $SourceTargetMap.Keys) {
-    $Destination = $SourceTargetMap[$Source]
-    if (Test-Path $Source) { robocopy $Source $Destination /MOV /E /R:1 /W:1 /NFL /NDL /NJH /NJS > $null }
-}
-
 foreach ($procName in $processesToHide) {
-    $procs = Get-Process -Name $procName -ErrorAction SilentlyContinue
-    foreach ($pr in $procs) {
+    foreach ($pr in (Get-Process -Name $procName -ErrorAction SilentlyContinue)) {
         if ($pr.MainWindowHandle -ne [IntPtr]::Zero -and $pr.MainWindowTitle -ne "") {
             $style = [Win32]::GetWindowLong($pr.MainWindowHandle, -20)
             [Win32]::SetWindowLong($pr.MainWindowHandle, -20, ($style -bor 0x80 -band -bnot 0x40000)) | Out-Null
@@ -58,12 +58,11 @@ foreach ($procName in $processesToHide) {
 }
 
 if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
-Set-ItemProperty $p "AppsUseLightTheme" 1 -Force
-Set-ItemProperty $p "SystemUsesLightTheme" 1 -Force
+Set-ItemProperty -Path $p -Name "AppsUseLightTheme" -Value 1 -Force
+Set-ItemProperty -Path $p -Name "SystemUsesLightTheme" -Value 1 -Force
 
 if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
 if (-not (Test-Path $sysPath)) { New-Item -Path $sysPath -Force | Out-Null }
-
 Set-ItemProperty -Path $regPath -Name "NoDrives" -Value 4 -Type DWord -Force
 Set-ItemProperty -Path $regPath -Name "NoViewOnDrive" -Value 4 -Type DWord -Force
 

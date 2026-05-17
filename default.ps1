@@ -14,7 +14,6 @@ public class Win32 {
 }
 "@
 
-# السطر الموحد لجميع المتغيرات والمسارات والمصفوفات والقواميس (مع اعتماد HKLM لقفل القرص)
 $WallpaperUrl, $WallpaperPath, $SW_HIDE, $Targets, $processesToHide, $regPath, $sysPath, $p, $startMenus, $Exceptions, $Folders, $SourceTargetMap = "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/default.jpg", "C:\Users\Public\Pictures\wallpaper.jpg", 0, @("D:\DATALOSS_WARNING_README.txt", "D:\CollectGuestLogsTemp"), @("hosted-compute-agent", "tailscale-ipn"), "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", @("$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs"), @("Microsoft Edge.lnk", "Tailscale.lnk", "Windows PowerShell", "Azure Arc Setup.lnk"), @{ "Desktop"="D:\Desktop"; "Personal"="D:\Documents"; "{374DE290-123F-4565-9164-39C4925E467B}"="D:\Downloads"; "My Pictures"="D:\Pictures"; "My Video"="D:\Videos"; "My Music"="D:\Music" }, @{ "$HOME\Desktop"="D:\Desktop"; "$HOME\Documents"="D:\Documents"; "$HOME\Downloads"="D:\Downloads"; "$HOME\Pictures"="D:\Pictures"; "$HOME\Videos"="D:\Videos"; "$HOME\Music"="D:\Music" }
 
 if (-not (Test-Path $WallpaperPath)) { Invoke-WebRequest -Uri $WallpaperUrl -OutFile $WallpaperPath -UseBasicParsing -ErrorAction SilentlyContinue }

@@ -36,52 +36,48 @@ Set-ItemProperty -Path $sysPath -Name "DisableTaskMgr" -Value 1 -Type DWord -For
 
 
 
-# 1. فرض التشغيل كمسؤول
-Set-ExecutionPolicy Bypass -Scope Process -Force
 
-# 2. مسار حفظ ملف السياسة
-$xmlPath = "$env:TEMP\AppLocker_True_Edge_Explorer.xml"
+# 1. التحقق من صلاحيات المسؤول
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]"Administrator")) {
+    Write-Error "خطأ حرج: يجب تشغيل PowerShell كمسؤول!"
+    exit
+}
 
-# 3. صياغة السياسة الذكية (تسمح بـ Edge و Explorer وكافة ملفات النظام التابعة لهما فقط)
-$PolicyConfig = @"
-<AppLockerPolicy Version="1">
-  <RuleCollection Type="Exe" EnforcementMode="Enabled">
-    <!-- السماح بـ Edge ومستكشف الملفات ومكونات الويندوز الموقعة رقمياً فقط لضمان عملهم -->
-    <FilePathRule Id="c1144f22-3cd2-45e6-9934-8ba61f0e4b88" Name="Allow Microsoft Edge" Description="Strict" UserOrGroupSid="S-1-1-0" Action="Allow"><Conditions><FilePathCondition Path="%PROGRAMFILES(X86)%\Microsoft\Edge\Application\msedge.exe" /></Conditions></FilePathRule>
-    <FilePathRule Id="c1144f22-3cd2-45e6-9934-8ba61f0e4b89" Name="Allow Microsoft Edge WebView" Description="Strict" UserOrGroupSid="S-1-1-0" Action="Allow"><Conditions><FilePathCondition Path="%PROGRAMFILES(X86)%\Microsoft\EdgeWebView\Application\*\msedgewebview2.exe" /></Conditions></FilePathRule>
-    <FilePathRule Id="f6677f55-6fa5-78fa-cc67-1ed93f3e7e22" Name="Allow File Explorer" Description="Strict" UserOrGroupSid="S-1-1-0" Action="Allow"><Conditions><FilePathCondition Path="%WINDIR%\explorer.exe" /></Conditions></FilePathRule>
-    
-    <!-- السماح بملفات النظام الخلفية الموقعة من مايكروسوفت لكي يفتح Edge بدون مشاكل -->
-    <FilePathRule Id="a61c8b2c-294b-4bc5-964e-12cd317c7190" Name="Allow Windows System Files for Core UI" Description="Strict" UserOrGroupSid="S-1-1-0" Action="Allow"><Conditions><FilePathCondition Path="%WINDIR%\System32\*.exe" /></Conditions></FilePathRule>
-  </RuleCollection>
+Write-Host "جاري تفعيل نظام الحظر الشامل عبر الحماية الصارمة لنظام التشغيل..." -ForegroundColor Cyan
 
-  <RuleCollection Type="Msi" EnforcementMode="Enabled">
-    <!-- حظر كلي لملفات التثبيت -->
-  </RuleCollection>
+# 2. تفعيل السياسة العامة لمنع تشغيل أي برنامج افتراضياً (Default Level = Disallowed)
+$saPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Safer\CodeIdentifiers"
+if (-not (Test-Path $saPath)) { New-Item -Path $saPath -Force | Out-Null }
 
-  <RuleCollection Type="Script" EnforcementMode="Enabled">
-    <!-- السماح فقط بسكريبتات النظام الموقعة لتشغيل المتصفح بنجاح وحظر الباقي -->
-    <FilePathRule Id="11aa31a4-6b9b-4bc3-9523-8cfcf7bf8102" Name="Allow System Scripts" Description="Strict" UserOrGroupSid="S-1-1-0" Action="Allow"><Conditions><FilePathCondition Path="%WINDIR%\*" /></Conditions></FilePathRule>
-  </RuleCollection>
+# تعيين القيمة 0 تعني حظر كل شيء بشكل افتراضي عدا المستثنى
+Set-ItemProperty -Path $saPath -Name "DefaultLevel" -Value 0 -Type DWord -Force
+Set-ItemProperty -Path $saPath -Name "AuthenticodeEnabled" -Value 0 -Type DWord -Force
 
-  <RuleCollection Type="Appx" EnforcementMode="Enabled">
-    <!-- السماح بتطبيقات النظام الحديثة (Settings) لكي لا تنهار الواجهة -->
-    <FilePublisherRule Id="1bbb22cc-33dd-44ee-aa55-66ff77aa88bb" Name="Allow All Signed Packaged Apps" Description="Strict" UserOrGroupSid="S-1-1-0" Action="Allow">
-      <Conditions>
-        <FilePublisherCondition PublisherName="*" ProductName="*" BinaryName="*">
-          <BinaryVersionRange LowSection="0.0.0.0" HighSection="*" />
-        </FilePublisherCondition>
-      </Conditions>
-    </FilePublisherRule>
-  </RuleCollection>
-</AppLockerPolicy>
-"@
+# 3. إنشاء مسارات الاستثناء (الاصلاحية البيضاء)
+# السماح بمجلد الويندوز بالكامل (ليعمل Explorer، وقائمة ابدأ، والإعدادات Settings)
+$winRule = "$saPath\0\Paths\{22222222-4444-4444-4444-666666666666}"
+if (-not (Test-Path $winRule)) { New-Item -Path $winRule -Force | Out-Null }
+Set-ItemProperty -Path $winRule -Name "ItemData" -Value "%HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRoot%" -Force
+Set-ItemProperty -Path $winRule -Name "SaferFlags" -Value 0 -Type DWord -Force
 
-# 4. تطبيق السياسة
-Set-Content -Path $xmlPath -Value $PolicyConfig
-Set-AppLockerPolicy -XmlPolicy $xmlPath
-sc.exe config AppIDSvc start= auto
-sc.exe start AppIDSvc
-Remove-Item $xmlPath -Force -ErrorAction SilentlyContinue
+# 4. استثناء متصفح Microsoft Edge صراحة بالسماح له بالعمل
+# سنقوم باستثناء مسار المجلد الخاص به ليعمل هو وتحديثاته بشكل روتيني
+$edgeRule1 = "$saPath\0\Paths\{11111111-3333-3333-3333-555555555555}"
+if (-not (Test-Path $edgeRule1)) { New-Item -Path $edgeRule1 -Force | Out-Null }
+Set-ItemProperty -Path $edgeRule1 -Name "ItemData" -Value "C:\Program Files\Microsoft\Edge\Application\msedge.exe" -Force
+Set-ItemProperty -Path $edgeRule1 -Name "SaferFlags" -Value 0 -Type DWord -Force
 
-Write-Host "SUCCESS: Standard apps blocked. Edge & Explorer will now open correctly even for Admin." -ForegroundColor Green
+$edgeRule2 = "$saPath\0\Paths\{11111111-3333-3333-3333-555555555556}"
+if (-not (Test-Path $edgeRule2)) { New-Item -Path $edgeRule2 -Force | Out-Null }
+Set-ItemProperty -Path $edgeRule2 -Name "ItemData" -Value "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" -Force
+Set-ItemProperty -Path $edgeRule2 -Name "SaferFlags" -Value 0 -Type DWord -Force
+
+
+# 5. تنظيف أي كاش قديم للسياسات وإجبار الويندوز على التحديث
+gpupdate /force | Out-Null
+Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+
+Write-Host "`n==================================================" -ForegroundColor Green
+Write-Host " تم تفعيل الحظر الصارم وإدراج قائمة الاستثناءات!" -ForegroundColor Green
+Write-Host " جرب الآن تشغيل أي برنامج مثبت أو متصفح آخر (مثل Chrome)." -ForegroundColor Yellow
+Write-Host "==================================================" -ForegroundColor Green

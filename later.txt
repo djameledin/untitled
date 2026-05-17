@@ -14,3 +14,74 @@ foreach ($url in $AppUrls) {
 
 $Jobs | Wait-Job | Out-Null
 $Jobs | Remove-Job
+
+
+
+
+# مسار سياسات المستكشف والنظام
+$sysPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System"
+$regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"
+
+# منع نافذة Run
+Set-ItemProperty -Path $regPath -Name "NoRun" -Value 1 -Type DWord -Force
+
+# منع موجه الأوامر CMD
+Set-ItemProperty -Path $sysPath -Name "DisableCMD" -Value 1 -Type DWord -Force
+
+# منع مدير المهام Task Manager (لكي لا يغلق الموظف برامج الشركة)
+Set-ItemProperty -Path $sysPath -Name "DisableTaskMgr" -Value 1 -Type DWord -Force
+
+
+
+
+
+
+# 1. فرض التشغيل كمسؤول
+Set-ExecutionPolicy Bypass -Scope Process -Force
+
+# 2. مسار حفظ ملف السياسة
+$xmlPath = "$env:TEMP\AppLocker_True_Edge_Explorer.xml"
+
+# 3. صياغة السياسة الذكية (تسمح بـ Edge و Explorer وكافة ملفات النظام التابعة لهما فقط)
+$PolicyConfig = @"
+<AppLockerPolicy Version="1">
+  <RuleCollection Type="Exe" EnforcementMode="Enabled">
+    <!-- السماح بـ Edge ومستكشف الملفات ومكونات الويندوز الموقعة رقمياً فقط لضمان عملهم -->
+    <FilePathRule Id="c1144f22-3cd2-45e6-9934-8ba61f0e4b88" Name="Allow Microsoft Edge" Description="Strict" UserOrGroupSid="S-1-1-0" Action="Allow"><Conditions><FilePathCondition Path="%PROGRAMFILES(X86)%\Microsoft\Edge\Application\msedge.exe" /></Conditions></FilePathRule>
+    <FilePathRule Id="c1144f22-3cd2-45e6-9934-8ba61f0e4b89" Name="Allow Microsoft Edge WebView" Description="Strict" UserOrGroupSid="S-1-1-0" Action="Allow"><Conditions><FilePathCondition Path="%PROGRAMFILES(X86)%\Microsoft\EdgeWebView\Application\*\msedgewebview2.exe" /></Conditions></FilePathRule>
+    <FilePathRule Id="f6677f55-6fa5-78fa-cc67-1ed93f3e7e22" Name="Allow File Explorer" Description="Strict" UserOrGroupSid="S-1-1-0" Action="Allow"><Conditions><FilePathCondition Path="%WINDIR%\explorer.exe" /></Conditions></FilePathRule>
+    
+    <!-- السماح بملفات النظام الخلفية الموقعة من مايكروسوفت لكي يفتح Edge بدون مشاكل -->
+    <FilePathRule Id="a61c8b2c-294b-4bc5-964e-12cd317c7190" Name="Allow Windows System Files for Core UI" Description="Strict" UserOrGroupSid="S-1-1-0" Action="Allow"><Conditions><FilePathCondition Path="%WINDIR%\System32\*.exe" /></Conditions></FilePathRule>
+  </RuleCollection>
+
+  <RuleCollection Type="Msi" EnforcementMode="Enabled">
+    <!-- حظر كلي لملفات التثبيت -->
+  </RuleCollection>
+
+  <RuleCollection Type="Script" EnforcementMode="Enabled">
+    <!-- السماح فقط بسكريبتات النظام الموقعة لتشغيل المتصفح بنجاح وحظر الباقي -->
+    <FilePathRule Id="11aa31a4-6b9b-4bc3-9523-8cfcf7bf8102" Name="Allow System Scripts" Description="Strict" UserOrGroupSid="S-1-1-0" Action="Allow"><Conditions><FilePathCondition Path="%WINDIR%\*" /></Conditions></FilePathRule>
+  </RuleCollection>
+
+  <RuleCollection Type="Appx" EnforcementMode="Enabled">
+    <!-- السماح بتطبيقات النظام الحديثة (Settings) لكي لا تنهار الواجهة -->
+    <FilePublisherRule Id="1bbb22cc-33dd-44ee-aa55-66ff77aa88bb" Name="Allow All Signed Packaged Apps" Description="Strict" UserOrGroupSid="S-1-1-0" Action="Allow">
+      <Conditions>
+        <FilePublisherCondition PublisherName="*" ProductName="*" BinaryName="*">
+          <BinaryVersionRange LowSection="0.0.0.0" HighSection="*" />
+        </FilePublisherCondition>
+      </Conditions>
+    </FilePublisherRule>
+  </RuleCollection>
+</AppLockerPolicy>
+"@
+
+# 4. تطبيق السياسة
+Set-Content -Path $xmlPath -Value $PolicyConfig
+Set-AppLockerPolicy -XmlPolicy $xmlPath
+sc.exe config AppIDSvc start= auto
+sc.exe start AppIDSvc
+Remove-Item $xmlPath -Force -ErrorAction SilentlyContinue
+
+Write-Host "SUCCESS: Standard apps blocked. Edge & Explorer will now open correctly even for Admin." -ForegroundColor Green

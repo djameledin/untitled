@@ -14,7 +14,7 @@ public class Win32 {
 }
 "@
 
-$WallpaperUrl, $WallpaperPath, $SW_HIDE = "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/wallpaper.png", "C:\Users\Public\Pictures\wallpaper.jpg", 0
+$WallpaperUrl, $WallpaperPath, $SW_HIDE = "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/wallpaper.jpg", "C:\Users\Public\Pictures\wallpaper.jpg", 0
 $Targets = @("D:\DATALOSS_WARNING_README.txt", "D:\CollectGuestLogsTemp")
 $processesToHide = @("hosted-compute-agent", "tailscale-ipn")
 $regPath, $sysPath, $p = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"

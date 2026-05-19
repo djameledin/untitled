@@ -14,11 +14,30 @@ $SW_HIDE = 0
 $processesToHide = @("hosted-compute-agent", "tailscale-ipn")
 $regPath, $sysPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System"
 $Folders = @{ "Desktop"="D:\Desktop"; "Personal"="D:\Documents"; "{374DE290-123F-4565-9164-39C4925E467B}"="D:\Downloads"; "My Pictures"="D:\Pictures"; "My Video"="D:\Videos"; "My Music"="D:\Music" }
+$SettingsPath = "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\settings.json"
+$WindowsCalculator = "https://apps.microsoft.com/detail/9wzdncrfhvn5?hl=en-US&gl=US"; $WindowsNotepad = "https://apps.microsoft.com/detail/9msmlrh6lzf3?hl=en-US&gl=US"; $MicrosoftStickyNotes = "https://apps.microsoft.com/detail/9nblggh4qghw?hl=en-US&gl=US"; $SnippingTool = "https://apps.microsoft.com/detail/9mz95kl8mr0l?hl=en-US&gl=US"; $WindowsClock = "https://apps.microsoft.com/detail/9wzdncrfj3pr?hl=en-US&gl=US"
+$AppUrls = @($WindowsCalculator, $WindowsNotepad, $MicrosoftStickyNotes, $SnippingTool, $WindowsClock)
 
-# جعل المجلد المحدد مخفياً وكمجلد نظام (بدون حذف)
+if (Test-Path $SettingsPath) {
+    try {
+        $settings = Get-Content $SettingsPath -Raw | ConvertFrom-Json
+        if (-not $settings.visual) { $settings | Add-Member -MemberType NoteProperty -Name "visual" -Value @{} }
+        if (-not $settings.visual.network) { $settings.visual | Add-Member -MemberType NoteProperty -Name "network" -Value @{} }
+        $settings.visual.network.downloader = "do"
+        $settings | ConvertTo-Json -Depth 10 | Set-Content $SettingsPath -Encoding UTF8
+    } catch {
+        '{"visual":{"network":{"downloader":"do"}}}' | Set-Content $SettingsPath -Encoding UTF8
+    }
+}
+foreach ($url in $AppUrls) {
+    if ($url -match "detail/([a-zA-Z0-9]{12})") {
+        $appId = $Matches[1].ToUpper()
+        Start-Process powershell -WindowStyle Hidden -ArgumentList "-Command", "winget install --id '$appId' --source msstore --accept-source-agreements --accept-package-agreements --silent"
+    }
+}
+
 if (Test-Path "D:\a") { attrib +h +s "D:\a" }
 
-# إعادة توجيه مجلدات المستخدم تلقائياً وإنشائها إن لم تكن موجودة
 foreach ($Key in $Folders.Keys) {
     $Path = $Folders[$Key]
     if (-not (Test-Path $Path)) { New-Item -ItemType Directory -Path $Path -Force | Out-Null }
@@ -27,7 +46,6 @@ foreach ($Key in $Folders.Keys) {
     if (Test-Path $shell) { Set-ItemProperty -Path $shell -Name $Key -Value $Path -Force }
 }
 
-# إخفاء نوافذ العمليات المحددة دون إغلاقها
 foreach ($procName in $processesToHide) {
     foreach ($pr in (Get-Process -Name $procName -ErrorAction SilentlyContinue)) {
         if ($pr.MainWindowHandle -ne [IntPtr]::Zero -and $pr.MainWindowTitle -ne "") {
@@ -38,11 +56,9 @@ foreach ($procName in $processesToHide) {
     }
 }
 
-# قيود إخفاء ومنع الوصول لقرص النظام (القيمة 4 تعني القرص C)
 if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
 if (-not (Test-Path $sysPath)) { New-Item -Path $sysPath -Force | Out-Null }
 Set-ItemProperty -Path $regPath -Name "NoDrives" -Value 4 -Type DWord -Force
 Set-ItemProperty -Path $regPath -Name "NoViewOnDrive" -Value 4 -Type DWord -Force
 
-# إعادة تشغيل مستكشف النوافذ لتحديث الإعدادات فوراً
 Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue

@@ -22,20 +22,13 @@ jobs:
           echo "PASSWORD=$password" >> $env:GITHUB_ENV
           Write-Host "User account provisioning completed successfully."
           
-      - name: Install & Connect Tailscale
+      - name: Install Tailscale
         shell: pwsh
         run: |
           $msiPath = "$env:TEMP\tailscale.msi"
 
           Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.98.2-amd64.msi" -OutFile $msiPath
           Start-Process msiexec.exe -ArgumentList "/i $msiPath /quiet /norestart" -Wait
-
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="virtualmachine"
-          Write-Host "Tailscale Connected"
-
-          $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
-          if (-not $ip) { exit 1 }
-          echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
 
       - name: Initialize Windows
         shell: pwsh
@@ -47,6 +40,13 @@ jobs:
       - name: Maintain Connection & Show Info
         shell: pwsh
         run: |
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="virtualmachine"
+          Write-Host "Tailscale Connected"
+
+          $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+          if (-not $ip) { exit 1 }
+          echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
+          
           Write-Host "The Virtual Machine with this IP($env:TAILSCALE_IP) is ready!"
           Write-Host "Username: $env:USERNAME ; Password: $('*' * $env:PASSWORD.Length)"
 

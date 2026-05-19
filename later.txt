@@ -135,4 +135,78 @@ Set-AppLockerPolicy -XmlPolicy $PolicyFile -Merge
 
 Remove-Item -Path $PolicyFile -Force
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import requests
+from playwright.sync_api import sync_playwright
+
+SESSION_URL = "https://www.dropbox.com/scl/fi/..."
+EDGE_PATH = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+USER_DATA = "C:/Users/runneradmin/AppData/Local/Microsoft/Edge/User Data"
+TARGET_URL = "https://www.dropbox.com"
+
+data = requests.get(SESSION_URL).json()
+
+cookies = data if isinstance(data, list) else data.get("cookies", [])
+origins = [] if isinstance(data, list) else data.get("origins", [])
+
+# تنظيف الكوكيز
+for c in cookies:
+    c["sameSite"] = c.get("sameSite") if c.get("sameSite") in ["Strict", "Lax", "None"] else "Lax"
+    if "expiry" in c:
+        c["expires"] = int(c.pop("expiry"))
+
+with sync_playwright() as p:
+    context = p.chromium.launch_persistent_context(
+        user_data_dir=USER_DATA,
+        executable_path=EDGE_PATH,
+        headless=False,
+        args=["--no-first-run", "--no-default-browser-check"]
+    )
+
+    # ✅ افتح صفحة فارغة أولاً وأضف الكوكيز قبل التنقل
+    page = context.new_page()
+    page.goto("about:blank")
+
+    # أضف الكوكيز أولاً
+    if cookies:
+        context.add_cookies(cookies)
+
+    # ثم أضف localStorage
+    for origin in origins:
+        origin_url = origin.get("origin")
+        if origin_url:
+            page.goto(origin_url)
+            for item in origin.get("localStorage", []):
+                page.evaluate(
+                    "([k,v]) => localStorage.setItem(k,v)",
+                    [item["name"], item["value"]]
+                )
+
+    # ✅ انتقل للموقع بعد حقن كل شيء
+    page.goto(TARGET_URL)
+    page.wait_for_load_state("networkidle")
+
+    input("Press Enter to exit...")
+    context.close()
+
 gpupdate /force

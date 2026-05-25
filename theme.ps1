@@ -24,6 +24,6 @@ foreach ($path in $startMenus) {
     }
 }
 if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
-Set-ItemProperty -Path $p -Name "AppsUseLightTheme" -Value 1 -Force
-Set-ItemProperty -Path $p -Name "SystemUsesLightTheme" -Value 1 -Force
+Set-ItemProperty -Path $p -Name "AppsUseLightTheme" -Value 0 -Force
+Set-ItemProperty -Path $p -Name "SystemUsesLightTheme" -Value 0 -Force
 Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue

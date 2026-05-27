@@ -5,7 +5,7 @@ public class NativeWallpaper {
     public static bool SetWallpaper(string path) { return SystemParametersInfo(0x0014, 0, path, 0x0001 | 0x0002); }
 }
 "@
-$WallpaperUrl, $WallpaperPath, $p = "https://www.dropbox.com/scl/fi/xpiu3chyeql995go7bju5/microsoft-surface-sand-dunes.jpg?rlkey=4j5wq6s4c2qd3jp2okjjfwy7p&st=v0edtyoe&dl=1", "C:\Users\Public\Pictures\wallpaper.jpg", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+$WallpaperUrl, $WallpaperPath, $p = "https://4kwallpapers.com/images/wallpapers/windows-11-dark-mode-blue-stock-official-3840x2400-5630.jpg", "C:\Users\Public\Pictures\wallpaper.jpg", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 $startMenus = @("$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs")
 $TargetsToClean = @(
     "Anaconda (Miniconda)", "Azure Cosmos DB Emulator", "CMake", "Git", "ImageMagick*", "Inno Setup 6", "LLVM", "Maintenance", "Microsoft Azure", "MySQL", "Node.js", "OpenSSL", "PostgreSQL 17", "PowerShell", "Python 3.10", "Python 3.11", "Python 3.12", "Python 3.13", "Python 3.14", "R", "Rtools 4.5", "ServiceFabricLocalClusterManager", "Startup", "Strawberry Perl*", "Visual Studio 2022", "Accessories", "Windows Kits", "Windows PowerShell", "System Tools", "Administrative Tools", "WiX Toolset*", "7-Zip", "Accessibility",

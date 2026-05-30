@@ -17,6 +17,7 @@ $Folders = @{ "Desktop"="D:\Desktop"; "Personal"="D:\Documents"; "{374DE290-123F
 $SettingsPath = "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\settings.json"
 $WindowsCalculator = "https://apps.microsoft.com/detail/9wzdncrfhvn5?hl=en-US&gl=US"; $WindowsNotepad = "https://apps.microsoft.com/detail/9msmlrh6lzf3?hl=en-US&gl=US"; $MicrosoftStickyNotes = "https://apps.microsoft.com/detail/9nblggh4qghw?hl=en-US&gl=US"; $SnippingTool = "https://apps.microsoft.com/detail/9mz95kl8mr0l?hl=en-US&gl=US"; $WindowsClock = "https://apps.microsoft.com/detail/9wzdncrfj3pr?hl=en-US&gl=US"
 $AppUrls = @($WindowsCalculator, $WindowsNotepad, $MicrosoftStickyNotes, $SnippingTool, $WindowsClock)
+$RegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
 
 if (Test-Path $SettingsPath) {
     try {
@@ -55,6 +56,8 @@ foreach ($procName in $processesToHide) {
         }
     }
 }
+if (!(Test-Path $RegPath)) { New-Item -Path $RegPath -Force | Out-Null }
+Set-ItemProperty -Path $RegPath -Name "HideFirstRunExperience" -Value 1 -Type DWord
 
 if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
 if (-not (Test-Path $sysPath)) { New-Item -Path $sysPath -Force | Out-Null }

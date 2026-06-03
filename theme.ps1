@@ -47,8 +47,6 @@ if (-not (Test-Path $p)) { New-Item -Path $p -Force | Out-Null }
 Set-ItemProperty -Path $p -Name "AppsUseLightTheme" -Value 0 -Force
 Set-ItemProperty -Path $p -Name "SystemUsesLightTheme" -Value 0 -Force
 
-Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
-
 $TaskbandPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Taskband"
 Remove-ItemProperty -Path $TaskbandPath -Name "Favorites" -ErrorAction SilentlyContinue
 Remove-ItemProperty -Path $TaskbandPath -Name "FavoritesResolve" -ErrorAction SilentlyContinue
@@ -61,4 +59,4 @@ foreach ($item in $targets) {
     if (Test-Path $fullPath) { Remove-Item $fullPath -Force }
 }
 
-Start-Process explorer
+Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue

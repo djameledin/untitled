@@ -4,7 +4,7 @@ on:
 
 jobs:
   This-PC:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 340
     steps:
       - name: Configure default runneradmin user

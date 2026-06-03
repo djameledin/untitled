@@ -4,7 +4,7 @@ on:
 
 jobs:
   This-PC:
-    runs-on: windows-2022
+    runs-on: windows-latest
     timeout-minutes: 340
     steps:
       - name: Configure default runneradmin user
@@ -22,7 +22,7 @@ jobs:
           echo "PASSWORD=$password" >> $env:GITHUB_ENV
           Write-Host "User account provisioning completed successfully."
           
-      - name: Install Tailscale
+      - name: Download & Install Tailscale
         shell: pwsh
         run: |
           $msiPath = "$env:TEMP\tailscale.msi"
@@ -34,7 +34,7 @@ jobs:
         shell: pwsh
         run: |
           Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy Bypass
-          # iex (Invoke-WebRequest "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/actions.ps1").Content
+          iex (Invoke-WebRequest "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/actions.ps1").Content
           iex (Invoke-WebRequest "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/theme.ps1").Content
 
       - name: Maintain Connection & Show Info
@@ -45,9 +45,8 @@ jobs:
 
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           if (-not $ip) { exit 1 }
-          echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
           
-          Write-Host "The Virtual Machine with this IP($env:TAILSCALE_IP) is ready!"
+          Write-Host "The Virtual Machine with this IP($ip) is ready!"
           Write-Host "Username: $env:USERNAME ; Password: $('*' * $env:PASSWORD.Length)"
 
           $endTime = (Get-Date).AddHours(5).AddMinutes(30)

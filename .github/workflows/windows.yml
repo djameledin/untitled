@@ -34,7 +34,7 @@ jobs:
         shell: pwsh
         run: |
           Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy Bypass
-          iex (Invoke-WebRequest "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/actions.ps1").Content
+          # iex (Invoke-WebRequest "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/actions.ps1").Content
           iex (Invoke-WebRequest "https://raw.githubusercontent.com/djameledin/untitled/refs/heads/main/theme.ps1").Content
 
       - name: Maintain Connection & Show Info

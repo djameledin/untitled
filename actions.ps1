@@ -19,6 +19,8 @@ $WindowsCalculator = "https://apps.microsoft.com/detail/9wzdncrfhvn5?hl=en-US&gl
 $AppUrls = @($WindowsCalculator, $WindowsNotepad, $MicrosoftStickyNotes, $SnippingTool, $WindowsClock)
 $edge = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
 
+$SettingsPath = "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\settings.json"
+
 if (Test-Path $SettingsPath) {
     try {
         $settings = Get-Content $SettingsPath -Raw | ConvertFrom-Json
@@ -30,12 +32,25 @@ if (Test-Path $SettingsPath) {
         '{"visual":{"network":{"downloader":"do"}}}' | Set-Content $SettingsPath -Encoding UTF8
     }
 }
+
+$jobs = @()
+
 foreach ($url in $AppUrls) {
     if ($url -match "detail/([a-zA-Z0-9]{12})") {
         $appId = $Matches[1].ToUpper()
-        Start-Process powershell -WindowStyle Hidden -ArgumentList "-Command", "winget install --id '$appId' --source msstore --accept-source-agreements --accept-package-agreements --silent"
+        $jobs += Start-Job -ScriptBlock {
+            param($id)
+            winget install --id $id --source msstore `
+                --accept-source-agreements `
+                --accept-package-agreements `
+                --silent `
+                --disable-interactivity
+        } -ArgumentList $appId
     }
 }
+
+Wait-Job -Job $jobs | Out-Null
+Get-AppxPackage -allusers Microsoft.Windows.StartMenuExperienceHost | Reset-AppxPackage
 
 if (Test-Path "D:\a") { attrib +h +s "D:\a" }
 

@@ -45,12 +45,10 @@ foreach ($url in $AppUrls) {
                 --accept-package-agreements `
                 --silent `
                 --disable-interactivity
+            Get-AppxPackage -allusers Microsoft.Windows.StartMenuExperienceHost | Reset-AppxPackage
         } -ArgumentList $appId
     }
 }
-
-Wait-Job -Job $jobs | Out-Null
-Get-AppxPackage -allusers Microsoft.Windows.StartMenuExperienceHost | Reset-AppxPackage
 
 if (Test-Path "D:\a") { attrib +h +s "D:\a" }
 

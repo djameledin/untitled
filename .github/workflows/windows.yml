@@ -44,15 +44,15 @@ jobs:
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="windows"
 
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
-          if (-not $ip) { exit 1 }
-          
+          if (-not $ip) { exit 1 } 
           Write-Host "The Virtual Machine with this IP($ip) is ready!"
           Write-Host "Username: $env:USERNAME ; Password: $('*' * $env:PASSWORD.Length)"
+          Write-Host " "
 
           $endTime = (Get-Date).AddHours(5).AddMinutes(45)
           while ((Get-Date) -lt $endTime) {
-              Write-Host "This session is still running at $(Get-Date -Format 'HH:mm')"
-              Start-Sleep -Seconds 780
+              Start-Sleep -Seconds 300
+              Write-Host "This session is still running at $(Get-Date -Format 'HH:mm')"  
               }
           tailscale logout
           Write-Host "This Session Completed Successfully."

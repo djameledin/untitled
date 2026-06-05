@@ -50,9 +50,8 @@ jobs:
           Write-Host "Username: $env:USERNAME ; Password: $('*' * $env:PASSWORD.Length)"
 
           while (true) {
-              Write-Progress -Activity "Workflow Active" -Status "Computing on your computer" -PercentComplete 0
-              Start-Sleep -Seconds 900
               Write-Host "This session is still running at $(Get-Date -Format 'HH:mm')"
-          }
+              Start-Sleep -Seconds 780
+              }
 
           Write-Host "This Session Completed Successfully."

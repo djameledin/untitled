@@ -29,6 +29,7 @@ jobs:
 
           Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.98.2-amd64.msi" -OutFile $msiPath
           Start-Process msiexec.exe -ArgumentList "/i $msiPath /quiet /norestart" -Wait
+          Write-Host "Tailscale Installed"
 
       - name: Initialize Windows
         shell: pwsh
@@ -40,8 +41,7 @@ jobs:
       - name: Maintain Connection & Show Info
         shell: pwsh
         run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="virtualmachine"
-          Write-Host "Tailscale Connected"
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="windows"
 
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           if (-not $ip) { exit 1 }
@@ -49,9 +49,10 @@ jobs:
           Write-Host "The Virtual Machine with this IP($ip) is ready!"
           Write-Host "Username: $env:USERNAME ; Password: $('*' * $env:PASSWORD.Length)"
 
-          while (true) {
+          $endTime = (Get-Date).AddHours(5).AddMinutes(45)
+          while ((Get-Date) -lt $endTime) {
               Write-Host "This session is still running at $(Get-Date -Format 'HH:mm')"
               Start-Sleep -Seconds 780
               }
-
+          tailscale logout
           Write-Host "This Session Completed Successfully."

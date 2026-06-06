@@ -21,35 +21,6 @@ $edge = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
 
 $SettingsPath = "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\settings.json"
 
-if (Test-Path $SettingsPath) {
-    try {
-        $settings = Get-Content $SettingsPath -Raw | ConvertFrom-Json
-        if (-not $settings.visual) { $settings | Add-Member -MemberType NoteProperty -Name "visual" -Value @{} }
-        if (-not $settings.visual.network) { $settings.visual | Add-Member -MemberType NoteProperty -Name "network" -Value @{} }
-        $settings.visual.network.downloader = "do"
-        $settings | ConvertTo-Json -Depth 10 | Set-Content $SettingsPath -Encoding UTF8
-    } catch {
-        '{"visual":{"network":{"downloader":"do"}}}' | Set-Content $SettingsPath -Encoding UTF8
-    }
-}
-
-$jobs = @()
-
-foreach ($url in $AppUrls) {
-    if ($url -match "detail/([a-zA-Z0-9]{12})") {
-        $appId = $Matches[1].ToUpper()
-        $jobs += Start-Job -ScriptBlock {
-            param($id)
-            winget install --id $id --source msstore `
-                --accept-source-agreements `
-                --accept-package-agreements `
-                --silent `
-                --disable-interactivity
-            Get-AppxPackage -allusers Microsoft.Windows.StartMenuExperienceHost | Reset-AppxPackage
-        } -ArgumentList $appId
-    }
-}
-
 if (Test-Path "D:\a") { attrib +h +s "D:\a" }
 
 foreach ($Key in $Folders.Keys) {

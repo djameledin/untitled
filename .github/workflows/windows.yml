@@ -49,10 +49,12 @@ jobs:
           Write-Host "Username: $env:USERNAME ; Password: $('*' * $env:PASSWORD.Length)"
           Write-Host " "
 
-          $endTime = (Get-Date).AddHours(5).AddMinutes(45)
-          while ((Get-Date) -lt $endTime) {
-              Start-Sleep -Seconds 300
-              Write-Host "This session is still running at $(Get-Date -Format 'HH:mm')"  
-              }
+          $totalIterations = 22
+          for ($i = 1; $i -le $totalIterations; $i++) {
+              $percent = [math]::Round(($i / $totalIterations) * 100)
+              Write-Progress -Activity "Workflow Active" -Status "Computing on your computer" -PercentComplete $percent
+              Start-Sleep -Seconds 900
+              Write-Host "This session is still running at $(Get-Date -Format 'HH:mm') (Loop $i of $totalIterations)"
+          }
           tailscale logout
           Write-Host "This Session Completed Successfully."

@@ -1,0 +1,61 @@
+name: Ubuntu environment with xrdp (No Desktop)
+on:
+  workflow_dispatch:
+
+jobs:
+  This-PC:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - name: Update System & Install Openbox & xrdp
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xrdp openbox xterm
+        
+          echo "openbox-session" > ~/.xsession
+          
+          sudo systemctl enable xrdp
+          sudo systemctl start xrdp
+
+      - name: Configure default runneradmin user
+        run: |
+          USERNAME="runneradmin"
+          PASSWORD="${{ secrets.PASSWORD }}"
+       
+          echo "$USERNAME:$PASSWORD" | sudo chpasswd
+          sudo usermod -aG sudo $USERNAME
+          
+          echo "USER_NAME=$USERNAME" >> $GITHUB_ENV
+          echo "USER_PASS=$PASSWORD" >> $GITHUB_ENV
+          echo "User account provisioning completed successfully."
+
+      - name: Download & Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+          echo "Tailscale Installed"
+
+      - name: Maintain Connection & Show Info
+        run: |
+          sudo tailscale up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="ubuntu-xrdp"
+
+          IP=$(tailscale ip -4)
+          if [ -z "$IP" ]; then exit 1; fi
+          
+          PASS_LEN=${#USER_PASS}
+          STARS=$(printf '*%.0s' $(seq 1 $PASS_LEN))
+
+          echo "The Virtual Machine with this IP($IP) is ready!"
+          echo "Username: $USER_NAME ; Password: $STARS"
+          echo "You can now connect using any RDP client on port 3389"
+          echo " "
+
+          TOTAL_ITERATIONS=22
+          for i in $(seq 1 $TOTAL_ITERATIONS); do
+              PERCENT=$(( (i * 100) / TOTAL_ITERATIONS ))
+              echo "Workflow Active: Computing on your computer ($PERCENT%)"
+              sleep 900
+              echo "This session is still running at $(date +'%H:%M') (Loop $i of $totalIterations)"
+          done
+          
+          sudo tailscale logout
+          echo "This Session Completed Successfully."

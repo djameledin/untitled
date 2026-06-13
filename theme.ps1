@@ -6,7 +6,7 @@ public class NativeWallpaper {
 }
 "@
 
-$WallpaperUrl = "https://4kwallpapers.com/images/wallpapers/windows-11-blue-stock-white-background-light-official-3840x2400-5616.jpg"
+$WallpaperUrl = "https://onedrive.live.com/?photosData=%2Fshare%2FABB6DCEBBF5EB934%21sbb1e297292fa4bdd94f6efcdd4e934a9%3Fithint%3Dphoto%26e%3DKtitfx%26migratedtospo%3Dtrue&redeem=aHR0cHM6Ly8xZHJ2Lm1zL2kvYy9hYmI2ZGNlYmJmNWViOTM0L0lRQnlLUjY3LXBMZFM1VDI3ODNVNlRTcEFXdFZGMXphVVZOUWU1V2tGS1l0Wk9FP2U9S3RpdGZ4&view=8"
 $WallpaperPath = "C:\Users\Public\Pictures\wallpaper.jpg"
 $p = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 

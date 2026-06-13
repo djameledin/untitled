@@ -21,10 +21,17 @@ jobs:
         run: |
           USERNAME="runneradmin"
           PASSWORD="${{ secrets.PASSWORD }}"
-       
+          
+          # إنشاء مستخدم جديد بملد منزلي ومحرك أوامر bash
+          sudo useradd -m -s /bin/bash $USERNAME
+          
+          # تعيين كلمة المرور للمستخدم الجديد
           echo "$USERNAME:$PASSWORD" | sudo chpasswd
+          
+          # إضافة المستخدم لمجموعة sudo لامتلاك الصلاحيات الكاملة
           sudo usermod -aG sudo $USERNAME
           
+          # حفظ البيانات في البيئة للاستخدام لاحقاً
           echo "USER_NAME=$USERNAME" >> $GITHUB_ENV
           echo "USER_PASS=$PASSWORD" >> $GITHUB_ENV
           echo "User account provisioning completed successfully."

@@ -39,7 +39,7 @@ jobs:
 
       - name: Configure default runneradmin user
         run: |
-          USERNAME="runneradmin"
+          USERNAME="github"
           PASSWORD="${{ secrets.PASSWORD }}"
           
           sudo useradd -m -s /bin/bash $USERNAME || true

@@ -1,4 +1,5 @@
-name: Ubuntu
+name: Ubuntu environment
+
 on:
   workflow_dispatch:
 
@@ -22,94 +23,64 @@ jobs:
         sudo sysctl -w net.core.default_qdisc=fq
         sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
         
+        echo 'Acquire::ForceIPv4 "true";' | sudo tee /etc/apt/apt.conf.d/99force-ipv4
+        echo 'Acquire::Languages "none";' | sudo tee /etc/apt/apt.conf.d/99disable-languages
+        echo 'APT::Install-Recommends "false";' | sudo tee /etc/apt/apt.conf.d/99synaptic
+        
         sudo apt-get update
-        sudo apt-get install -y pigz pixz pbzip2
+        sudo apt-get install -y pigz pixz pbzip2 curl wget
         sudo ln -sf /usr/bin/pigz /usr/bin/gzip
         sudo ln -sf /usr/bin/pixz /usr/bin/xz
 
-    - name: Install GNOME Desktop & xrdp (RDP)
+    - name: Install GNOME Desktop & xrdp
       run: |
         sudo apt-get update
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-          xrdp xorgxrdp gdm3 gnome-shell gnome-session gnome-terminal gsettings-desktop-schemas \
-          dbus-x11 x11-xserver-utils tasksel wget curl
-
-        # إعداد خدمة xrdp للسماح لأي مستخدم بالاتصال
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q xrdp xorgxrdp gdm3 gnome-shell gnome-session gnome-terminal gsettings-desktop-schemas dbus-x11 x11-xserver-utils
+        
         sudo mkdir -p /etc/xrdp
         echo "allowed_users=anybody" | sudo tee /etc/xrdp/Xwrapper.config
         
-        # تفعيل وتشغيل خدمة الـ RDP
         sudo systemctl enable xrdp
         sudo systemctl restart xrdp
 
-    - name: Configure User & Install Tailscale
+    - name: Configure Root User & Install Tailscale
       run: |
-        # يمكنك تغيير اسم المستخدم واسم الجهاز من هنا مباشرة في الكود
-        MY_USER="user"
-        C_NAME="ubuntu-desktop"
         MY_PASS="${{ secrets.PASSWORD }}"
-
         if [ -z "$MY_PASS" ]; then
-          echo "Error: PASSWORD secret is missing in GitHub Settings!"
           exit 1
         fi
-
-        # إنشاء المستخدم وتعيين الصلاحيات وكلمة المرور
-        if ! id "$MY_USER" &>/dev/null; then
-            sudo useradd -m -s /bin/bash "$MY_USER"
-        fi
-        sudo usermod -aG sudo "$MY_USER"
-        sudo sh -c "echo '$MY_USER:$MY_PASS' | chpasswd"
-        sudo hostname "$C_NAME"
-
-        # ربط واجهة GNOME بحساب المستخدم الجديد عند دخوله عبر RDP
-        sudo mkdir -p /home/$MY_USER
-        echo "gnome-session" | sudo tee /home/$MY_USER/.xsession > /dev/null
-        sudo sh -c "echo 'export GNOME_SHELL_SESSION_MODE=ubuntu' > /home/$MY_USER/.xprofile"
-        sudo sh -c "echo 'export XDG_CURRENT_DESKTOP=Ubuntu:GNOME' >> /home/$MY_USER/.xprofile"
-        sudo chown -R $MY_USER:$MY_USER /home/$MY_USER/
-
-        # حفظ اسم المستخدم كمتغير للخطوة التالية
-        echo "RDP_USER=$MY_USER" >> $GITHUB_ENV
-        echo "COMP_NAME=$C_NAME" >> $GITHUB_ENV
-
-        # تثبيت أداة Tailscale
+        
+        echo "root:$MY_PASS" | sudo chpasswd
+        sudo hostname "ubuntu-desktop"
+        
+        sudo sed -i 's/allowed_users=console/allowed_users=anybody/g' /etc/X11/Xwrapper.config || true
+        
+        echo "gnome-session" | sudo tee /root/.xsession > /dev/null
+        echo "export GNOME_SHELL_SESSION_MODE=ubuntu" | sudo tee /root/.xprofile > /dev/null
+        echo "export XDG_CURRENT_DESKTOP=Ubuntu:GNOME" | sudo tee -a /root/.xprofile > /dev/null
+        
         curl -fsSL https://tailscale.com/install.sh | sh
 
     - name: Connect Tailscale & Maintain Connection
       run: |
-        # الاتصال بشبكة تايلسكيل
-        sudo tailscale up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="${{ env.COMP_NAME }}"
-
-        # الانتظار للتأكد من جلب الـ IP الخاص بـ Tailscale بنجاح
-        echo "Fetching Tailscale IP..."
+        sudo tailscale up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="ubuntu"
+        
         for i in {1..10}; do
            IP=$(tailscale ip -4)
            if [ ! -z "$IP" ]; then break; fi
            sleep 3
         done
-
-        if [ -z "$IP" ]; then 
-           echo "Error: Tailscale IP configuration failed!"
+        
+        if [ -z "$IP" ]; then
            exit 1
         fi
-
-        # طباعة بيانات الاتصال
-        echo "=================================================="
-        echo "Your Ubuntu GNOME Environment is ready!"
-        echo "Connect via RDP using the following IP:"
-        echo "Tailscale IP: $IP"
-        echo "Username: ${{ env.RDP_USER }}"
-        echo "Password: (The password you saved in GitHub Secrets)"
-        echo "=================================================="
-
-        # حلقة الحفاظ على الاتصال مفتوحاً (Maintain Connection)
+        
+        echo "IP: $IP"
+        
         TOTAL_ITERATIONS=22
         for i in $(seq 1 $TOTAL_ITERATIONS); do
-            PERCENT=$(( (i * 100) / TOTAL_ITERATIONS ))
-            echo "Workflow Active: System Running smoothly ($PERCENT%)"
             sleep 900
-            echo "Session active at $(date +'%H:%M') (Loop $i of $TOTAL_ITERATIONS)"
+            echo "Loop $i"
         done
-
+        
         sudo tailscale logout

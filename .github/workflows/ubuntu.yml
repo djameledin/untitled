@@ -1,4 +1,4 @@
-name: Ubuntu environment with xrdp (No Desktop)
+name: Ubuntu environment
 on:
   workflow_dispatch:
 
@@ -7,12 +7,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 340
     steps:
-      - name: Update System & Install Openbox & xrdp
+      - name: Optimize Network & CPU Performance
         run: |
+          sudo sysctl -w net.core.rmem_max=16777216
+          sudo sysctl -w net.core.wmem_max=16777216
+          sudo sysctl -w net.ipv4.tcp_rmem="4096 87380 16777216"
+          sudo sysctl -w net.ipv4.tcp_wmem="4096 65536 16777216"
+          sudo sysctl -w net.core.default_qdisc=fq
+          sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
+          
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xrdp openbox xterm
-        
-          echo "openbox-session" > ~/.xsession
+          sudo apt-get install -y pigz pixz pbzip2
+          
+          sudo ln -sf /usr/bin/pigz /usr/bin/gzip
+          sudo ln -sf /usr/bin/pixz /usr/bin/xz
+
+      - name: Update System & Install Gnome Minimal & xrdp
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            xrdp gnome-session gnome-terminal gsettings-desktop-schemas
+          
+          echo "gnome-session" > ~/.xsession
+          
+          sudo sed -i 's/test -x \/etc\/X11\/Xsession \&\& exec \/etc\/X11\/Xsession/exec gnome-session/g' /etc/xrdp/startwm.sh
           
           sudo systemctl enable xrdp
           sudo systemctl start xrdp
@@ -22,16 +39,15 @@ jobs:
           USERNAME="runneradmin"
           PASSWORD="${{ secrets.PASSWORD }}"
           
-          # إنشاء مستخدم جديد بملد منزلي ومحرك أوامر bash
           sudo useradd -m -s /bin/bash $USERNAME
           
-          # تعيين كلمة المرور للمستخدم الجديد
           echo "$USERNAME:$PASSWORD" | sudo chpasswd
           
-          # إضافة المستخدم لمجموعة sudo لامتلاك الصلاحيات الكاملة
           sudo usermod -aG sudo $USERNAME
           
-          # حفظ البيانات في البيئة للاستخدام لاحقاً
+          echo "gnome-session" > /home/$USERNAME/.xsession
+          sudo chown $USERNAME:$USERNAME /home/$USERNAME/.xsession
+
           echo "USER_NAME=$USERNAME" >> $GITHUB_ENV
           echo "USER_PASS=$PASSWORD" >> $GITHUB_ENV
           echo "User account provisioning completed successfully."
@@ -61,7 +77,7 @@ jobs:
               PERCENT=$(( (i * 100) / TOTAL_ITERATIONS ))
               echo "Workflow Active: Computing on your computer ($PERCENT%)"
               sleep 900
-              echo "This session is still running at $(date +'%H:%M') (Loop $i of $totalIterations)"
+              echo "This session is still running at $(date +'%H:%M') (Loop $i of $TOTAL_ITERATIONS)"
           done
           
           sudo tailscale logout

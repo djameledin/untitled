@@ -24,19 +24,13 @@ jobs:
 
       - name: Update System & Install Gnome Minimal & xrdp
         run: |
+          sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            xrdp xorgxrdp gnome-session gnome-terminal gsettings-desktop-schemas \
+            xrdp xorgxrdp gdm3 gnome-shell gnome-session gnome-terminal gsettings-desktop-schemas \
             dbus-x11 x11-xserver-utils
-          
-          echo "export GNOME_SHELL_SESSION_MODE=ubuntu" > ~/.xprofile
-          echo "export XDG_CURRENT_DESKTOP=Ubuntu:GNOME" >> ~/.xprofile
-          echo "export XDG_DATA_DIRS=/usr/share/ubuntu:/usr/local/share:/usr/share" >> ~/.xprofile
-          echo "export XDG_CONFIG_DIRS=/etc/xdg/xdg-ubuntu:/etc/xdg" >> ~/.xprofile
-          echo "gnome-session" >> ~/.xprofile
-          
-          cp ~/.xprofile ~/.xsession
-          
-          sudo sed -i 's/test -x \/etc\/X11\/Xsession \&\& exec \/etc\/X11\/Xsession/exec gnome-session/g' /etc/xrdp/startwm.sh
+
+          echo "gnome-session" > ~/.xsession
+          sudo sed -i 's/allowed_users=console/allowed_users=anybody/g' /etc/xrdp/Xwrapper.config
           
           sudo systemctl enable xrdp
           sudo systemctl restart xrdp
@@ -46,13 +40,15 @@ jobs:
           USERNAME="runneradmin"
           PASSWORD="${{ secrets.PASSWORD }}"
           
-          sudo useradd -m -s /bin/bash $USERNAME
+          sudo useradd -m -s /bin/bash $USERNAME || true
           echo "$USERNAME:$PASSWORD" | sudo chpasswd
           sudo usermod -aG sudo $USERNAME
           
-          sudo cp ~/.xprofile /home/$USERNAME/.xprofile
-          sudo cp ~/.xsession /home/$USERNAME/.xsession
-          sudo chown -R $USERNAME:$USERNAME /home/$USERNAME/.xprofile /home/$USERNAME/.xsession
+          echo "gnome-session" > /home/$USERNAME/.xsession
+          echo "export GNOME_SHELL_SESSION_MODE=ubuntu" > /home/$USERNAME/.xprofile
+          echo "export XDG_CURRENT_DESKTOP=Ubuntu:GNOME" >> /home/$USERNAME/.xprofile
+          
+          sudo chown -R $USERNAME:$USERNAME /home/$USERNAME/
           
           echo "USER_NAME=$USERNAME" >> $GITHUB_ENV
           echo "USER_PASS=$PASSWORD" >> $GITHUB_ENV
@@ -63,7 +59,7 @@ jobs:
 
       - name: Maintain Connection & Show Info
         run: |
-          sudo tailscale up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="debian"
+          sudo tailscale up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="ubuntu"
 
           IP=$(tailscale ip -4)
           if [ -z "$IP" ]; then exit 1; fi

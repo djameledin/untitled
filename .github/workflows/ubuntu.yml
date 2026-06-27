@@ -40,22 +40,18 @@ jobs:
           PASSWORD="${{ secrets.PASSWORD }}"
           
           sudo useradd -m -s /bin/bash $USERNAME
-          
           echo "$USERNAME:$PASSWORD" | sudo chpasswd
-          
           sudo usermod -aG sudo $USERNAME
           
-          echo "gnome-session" > /home/$USERNAME/.xsession
+          echo "gnome-session" | sudo tee /home/$USERNAME/.xsession > /dev/null
           sudo chown $USERNAME:$USERNAME /home/$USERNAME/.xsession
-
+          
           echo "USER_NAME=$USERNAME" >> $GITHUB_ENV
           echo "USER_PASS=$PASSWORD" >> $GITHUB_ENV
-          echo "User account provisioning completed successfully."
 
       - name: Download & Install Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
-          echo "Tailscale Installed"
 
       - name: Maintain Connection & Show Info
         run: |
@@ -81,4 +77,3 @@ jobs:
           done
           
           sudo tailscale logout
-          echo "This Session Completed Successfully."

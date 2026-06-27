@@ -1,4 +1,4 @@
-name: Ubuntu environment with xrdp (Gnome Minimal)
+name: Ubuntu environment
 on:
   workflow_dispatch:
 
@@ -30,7 +30,9 @@ jobs:
             dbus-x11 x11-xserver-utils
 
           echo "gnome-session" > ~/.xsession
-          sudo sed -i 's/allowed_users=console/allowed_users=anybody/g' /etc/xrdp/Xwrapper.config
+          
+          sudo mkdir -p /etc/xrdp
+          echo "allowed_users=anybody" | sudo tee /etc/xrdp/Xwrapper.config
           
           sudo systemctl enable xrdp
           sudo systemctl restart xrdp

@@ -23,8 +23,7 @@ $TargetsToClean = @(
     "Administrative Tools", "WiX Toolset*", "7-Zip", "Accessibility", "Firefox.lnk", "Google Chrome.lnk",
     "Firefox Private Browsing.lnk", "Blend for Visual Studio 2022.lnk", "Microsoft Web Platform Installer.lnk",
     "Server Manager.lnk", "Tailscale.lnk", "Visual Studio 2022.lnk", "Visual Studio Installer.lnk",
-    "Windows Admin Center Setup.lnk", "WSL Settings.lnk", "WSL.lnk", "Unity Hub.lnk", "Paint.lnk",
-    "Snipping Tool.lnk", "Notepad.lnk", "Calculator.lnk", "Administrative Tools.lnk"
+    "Windows Admin Center Setup.lnk", "WSL Settings.lnk", "WSL.lnk", "Unity Hub.lnk", "Administrative Tools.lnk"
 )
 
 if (-not (Test-Path $WallpaperPath)) { Invoke-WebRequest -Uri $WallpaperUrl -OutFile $WallpaperPath -UseBasicParsing -ErrorAction SilentlyContinue }

@@ -1,4 +1,4 @@
-name: Ubuntu environment
+name: Ubuntu environment with xrdp (Gnome Minimal)
 on:
   workflow_dispatch:
 
@@ -25,14 +25,21 @@ jobs:
       - name: Update System & Install Gnome Minimal & xrdp
         run: |
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            xrdp gnome-session gnome-terminal gsettings-desktop-schemas
+            xrdp xorgxrdp gnome-session gnome-terminal gsettings-desktop-schemas \
+            dbus-x11 x11-xserver-utils
           
-          echo "gnome-session" > ~/.xsession
+          echo "export GNOME_SHELL_SESSION_MODE=ubuntu" > ~/.xprofile
+          echo "export XDG_CURRENT_DESKTOP=Ubuntu:GNOME" >> ~/.xprofile
+          echo "export XDG_DATA_DIRS=/usr/share/ubuntu:/usr/local/share:/usr/share" >> ~/.xprofile
+          echo "export XDG_CONFIG_DIRS=/etc/xdg/xdg-ubuntu:/etc/xdg" >> ~/.xprofile
+          echo "gnome-session" >> ~/.xprofile
+          
+          cp ~/.xprofile ~/.xsession
           
           sudo sed -i 's/test -x \/etc\/X11\/Xsession \&\& exec \/etc\/X11\/Xsession/exec gnome-session/g' /etc/xrdp/startwm.sh
           
           sudo systemctl enable xrdp
-          sudo systemctl start xrdp
+          sudo systemctl restart xrdp
 
       - name: Configure default runneradmin user
         run: |
@@ -43,8 +50,9 @@ jobs:
           echo "$USERNAME:$PASSWORD" | sudo chpasswd
           sudo usermod -aG sudo $USERNAME
           
-          echo "gnome-session" | sudo tee /home/$USERNAME/.xsession > /dev/null
-          sudo chown $USERNAME:$USERNAME /home/$USERNAME/.xsession
+          sudo cp ~/.xprofile /home/$USERNAME/.xprofile
+          sudo cp ~/.xsession /home/$USERNAME/.xsession
+          sudo chown -R $USERNAME:$USERNAME /home/$USERNAME/.xprofile /home/$USERNAME/.xsession
           
           echo "USER_NAME=$USERNAME" >> $GITHUB_ENV
           echo "USER_PASS=$PASSWORD" >> $GITHUB_ENV
@@ -55,7 +63,7 @@ jobs:
 
       - name: Maintain Connection & Show Info
         run: |
-          sudo tailscale up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="ubuntu-xrdp"
+          sudo tailscale up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="debian"
 
           IP=$(tailscale ip -4)
           if [ -z "$IP" ]; then exit 1; fi

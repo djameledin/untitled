@@ -1,4 +1,4 @@
-Name: Tailscale Nodes
+name: Tailscale Nodes
 on:
   workflow_dispatch:
 

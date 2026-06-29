@@ -1,6 +1,9 @@
 name: Tailscale Nodes
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * *'
+    - cron: '5 15 * * *'
 
 jobs:
   Node:
@@ -11,7 +14,12 @@ jobs:
         shell: pwsh
         run: |
           $msiPath = "$env:TEMP\tailscale.msi"
-          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.98.2-amd64.msi" -OutFile $msiPath
+          $ProgressPreference = 'SilentlyContinue'
+          
+          Write-Host "Starting download..."
+          curl.exe -L "https://pkgs.tailscale.com/stable/tailscale-setup-1.98.2-amd64.msi" -o $msiPath
+          
+          Write-Host "Download finished. Installing..."
           Start-Process msiexec.exe -ArgumentList "/i $msiPath /quiet /norestart" -Wait
           Write-Host "Tailscale Installed"
 
@@ -22,7 +30,8 @@ jobs:
           & $ts up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="exit-node" --advertise-exit-node
           Write-Host "Tailscale Connected"
           Write-Host " "
-          $totalIterations = 22
+          
+          $totalIterations = 24
           for ($i = 1; $i -le $totalIterations; $i++) {
               $percent = [math]::Round(($i / $totalIterations) * 100)
               Write-Progress -Activity "Workflow Active" -Status "Computing on your computer" -PercentComplete $percent

@@ -1,0 +1,35 @@
+name: Tailscale Nodes
+on:
+  workflow_dispatch:
+
+jobs:
+  This-PC:
+    runs-on: windows-latest
+    timeout-minutes: 340
+    steps:
+      - name: Download & Install Tailscale
+        shell: pwsh
+        run: |
+          $msiPath = "$env:TEMP\tailscale.msi"
+
+          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.98.2-amd64.msi" -OutFile $msiPath
+          Start-Process msiexec.exe -ArgumentList "/i $msiPath /quiet /norestart" -Wait
+          Write-Host "Tailscale Installed"
+
+      - name: Maintain Connection & Show Info
+        shell: pwsh
+        run: |
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="windows" & tailscale up --advertise-exit-node --hostname=windows
+
+          Write-Host "Tailscale Connected"
+          Write-Host " "
+
+          $totalIterations = 22
+          for ($i = 1; $i -le $totalIterations; $i++) {
+              $percent = [math]::Round(($i / $totalIterations) * 100)
+              Write-Progress -Activity "Workflow Active" -Status "Computing on your computer" -PercentComplete $percent
+              Start-Sleep -Seconds 900
+              Write-Host "Tailscale node is still ongoing"
+          }
+          tailscale logout
+          Write-Host "This Session Completed Successfully."

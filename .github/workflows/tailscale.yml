@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  This-PC:
+  Node:
     runs-on: windows-latest
     timeout-minutes: 340
     steps:
@@ -20,7 +20,7 @@ jobs:
         shell: pwsh
         run: |
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="windows"
-          && tailscale up --advertise-exit-node --hostname="windows"
+          tailscale up --advertise-exit-node --hostname="windows"
 
           Write-Host "Tailscale Connected"
           Write-Host " "
@@ -30,7 +30,7 @@ jobs:
               $percent = [math]::Round(($i / $totalIterations) * 100)
               Write-Progress -Activity "Workflow Active" -Status "Computing on your computer" -PercentComplete $percent
               Start-Sleep -Seconds 900
-              Write-Host "Tailscale node is still ongoing"
+              Write-Host "Tailscale node is still ongoing ($percent)"
           }
           tailscale logout
           Write-Host "This Session Completed Successfully."

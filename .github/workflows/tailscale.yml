@@ -19,7 +19,8 @@ jobs:
       - name: Maintain Connection & Show Info
         shell: pwsh
         run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="windows" & tailscale up --advertise-exit-node --hostname=windows
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="windows"
+          && tailscale up --advertise-exit-node --hostname="windows"
 
           Write-Host "Tailscale Connected"
           Write-Host " "

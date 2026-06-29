@@ -1,4 +1,4 @@
-name: Tailscale Nodes
+Name: Tailscale Nodes
 on:
   workflow_dispatch:
 
@@ -11,7 +11,6 @@ jobs:
         shell: pwsh
         run: |
           $msiPath = "$env:TEMP\tailscale.msi"
-
           Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.98.2-amd64.msi" -OutFile $msiPath
           Start-Process msiexec.exe -ArgumentList "/i $msiPath /quiet /norestart" -Wait
           Write-Host "Tailscale Installed"
@@ -19,12 +18,10 @@ jobs:
       - name: Maintain Connection & Show Info
         shell: pwsh
         run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="windows"
-          tailscale up --advertise-exit-node --hostname="windows"
-
+          $ts = "$env:ProgramFiles\Tailscale\tailscale.exe"
+          & $ts up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="windows" --advertise-exit-node
           Write-Host "Tailscale Connected"
           Write-Host " "
-
           $totalIterations = 22
           for ($i = 1; $i -le $totalIterations; $i++) {
               $percent = [math]::Round(($i / $totalIterations) * 100)
@@ -32,5 +29,5 @@ jobs:
               Start-Sleep -Seconds 900
               Write-Host "Tailscale node is still ongoing ($percent)"
           }
-          tailscale logout
+          & $ts logout
           Write-Host "This Session Completed Successfully."

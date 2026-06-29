@@ -19,7 +19,7 @@ jobs:
         shell: pwsh
         run: |
           $ts = "$env:ProgramFiles\Tailscale\tailscale.exe"
-          & $ts up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="windows" --advertise-exit-node
+          & $ts up --reset --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="exit-node" --advertise-exit-node
           Write-Host "Tailscale Connected"
           Write-Host " "
           $totalIterations = 22

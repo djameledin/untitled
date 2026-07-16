@@ -1,0 +1,9 @@
+git clone https://$USERNAME:$GITHUB_TOKEN@github.com/$USERNAME/$REPO.git /home/workspace
+
+git config --global credential.helper store
+git config --global user.name "$USERNAME"
+git config --global user.email "$GITHUB_EMAIL"
+
+echo "https://$USERNAME:$GITHUB_TOKEN@github.com" > ~/.git-credentials
+
+git remote set-url origin "https://github.com/$USERNAME/$REPO.git"

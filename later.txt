@@ -17,6 +17,9 @@ $Jobs | Remove-Job
 
 
 
+#change variable names
+
+
 
 
 

@@ -1,4 +1,4 @@
-name: ChatGP Codex
+name: ChatGPT Codex
 on:
   workflow_dispatch:
   schedule:

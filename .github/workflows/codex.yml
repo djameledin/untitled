@@ -19,7 +19,7 @@ jobs:
       - name: Maintain Connection & Show Info
         shell: pwsh
         run: |
-          codex --help
+          codex exec "Hello World!"
           
           $totalIterations = 24
           for ($i = 1; $i -le $totalIterations; $i++) {

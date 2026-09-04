@@ -1,0 +1,30 @@
+name: ChatGP Codex
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * *'
+    - cron: '5 15 * * *'
+
+jobs:
+  Node:
+    runs-on: windows-latest
+    timeout-minutes: 340
+    steps:
+      - name: Download & Install Tailscale
+        shell: pwsh
+        run: |
+          # Install Codex using npm
+          npm install -g @openai/codex
+
+      - name: Maintain Connection & Show Info
+        shell: pwsh
+        run: |
+          $totalIterations = 24
+          for ($i = 1; $i -le $totalIterations; $i++) {
+              $percent = [math]::Round(($i / $totalIterations) * 100)
+              Write-Progress -Activity "Workflow Active" -Status "Computing on your computer" -PercentComplete $percent
+              Start-Sleep -Seconds 900
+              Write-Host "Tailscale node is still ongoing ($percent)"
+          }
+          & $ts logout
+          Write-Host "This Session Completed Successfully."

@@ -1,4 +1,4 @@
-name: ChatGPT Codex
+name: OpenAI Codex
 on:
   workflow_dispatch:
   schedule:
@@ -6,11 +6,11 @@ on:
     - cron: '5 15 * * *'
 
 jobs:
-  Node:
+  Session:
     runs-on: windows-latest
     timeout-minutes: 340
     steps:
-      - name: Download & Install Tailscale
+      - name: Download & Install Codex
         shell: pwsh
         run: |
           # Install Codex using npm
@@ -19,7 +19,7 @@ jobs:
       - name: Maintain Connection & Show Info
         shell: pwsh
         run: |
-          codex
+          codex --help
           
           $totalIterations = 24
           for ($i = 1; $i -le $totalIterations; $i++) {

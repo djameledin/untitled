@@ -19,6 +19,8 @@ jobs:
       - name: Maintain Connection & Show Info
         shell: pwsh
         run: |
+          codex
+          
           $totalIterations = 24
           for ($i = 1; $i -le $totalIterations; $i++) {
               $percent = [math]::Round(($i / $totalIterations) * 100)

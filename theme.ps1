@@ -26,7 +26,7 @@ $TargetsToClean = @(
     "Windows Admin Center Setup.lnk", "WSL Settings.lnk", "WSL.lnk", "Unity Hub.lnk", "Administrative Tools.lnk"
 )
 
-if (-not (Test-Path $WallpaperPath)) { Invoke-WebRequest -Uri $WallpaperUrl -OutFile $WallpaperPath -UseBasicParsing -ErrorAction SilentlyContinue }
+# if (-not (Test-Path $WallpaperPath)) { Invoke-WebRequest -Uri $WallpaperUrl -OutFile $WallpaperPath -UseBasicParsing -ErrorAction SilentlyContinue }
 if (Test-Path $WallpaperPath) { [NativeWallpaper]::SetWallpaper($WallpaperPath) | Out-Null }
 
 Remove-Item "$env:Public\Desktop\*.lnk", "$env:USERPROFILE\Desktop\*.lnk" -Force -ErrorAction SilentlyContinue

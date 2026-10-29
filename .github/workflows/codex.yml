@@ -1,7 +1,7 @@
 name: OpenAI Codex
 on:
   workflow_dispatch:
-  schedule:
+ # schedule:
     - cron: '0 9 * * *'
     - cron: '5 15 * * *'
 
